@@ -2,7 +2,7 @@
 
 import { CreditCard } from 'lucide-react';
 
-import { AsyncContent, Card, PageHeader, SegmentedToggle, StatCard } from '@/design-system';
+import { AsyncContent, Card, PageHeader, SegmentedToggle, StatCard, useConfirm } from '@/design-system';
 import type { BillingPlan } from '@/shared/api';
 import { formatMoney } from '@/shared/money/money';
 
@@ -17,6 +17,16 @@ const PLAN_OPTIONS: { value: BillingPlan; label: string }[] = [
 export function BrandWalletScreen() {
   const billingQuery = useBrandBilling();
   const setPlan = useSetBillingPlan();
+  const confirm = useConfirm();
+
+  const changePlan = async (plan: BillingPlan) => {
+    const confirmed = await confirm({
+      title: `Switch to the ${plan} plan?`,
+      message: 'Your subscription and monthly billing will change accordingly.',
+      confirmLabel: 'Switch plan',
+    });
+    if (confirmed) setPlan.mutate(plan);
+  };
 
   return (
     <>
@@ -36,7 +46,7 @@ export function BrandWalletScreen() {
                 <SegmentedToggle
                   options={PLAN_OPTIONS}
                   value={billing.plan as BillingPlan}
-                  onChange={(plan) => setPlan.mutate(plan)}
+                  onChange={changePlan}
                   ariaLabel="Subscription plan"
                 />
               </div>

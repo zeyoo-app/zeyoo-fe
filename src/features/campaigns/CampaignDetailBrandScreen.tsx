@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-import { AsyncContent, Avatar, Badge, Button, Card, Modal, Textarea } from '@/design-system';
+import { AsyncContent, Avatar, Badge, Button, Card, Modal, Textarea, useConfirm } from '@/design-system';
 import type { Campaign, Submission } from '@/shared/api';
 import { formatCount, formatMoney } from '@/shared/money/money';
 
@@ -23,6 +23,17 @@ export function CampaignDetailBrandScreen({ campaignId }: { campaignId: string }
 function CampaignDetail({ campaign }: { campaign: Campaign }) {
   const submissionsQuery = useCampaignSubmissions(campaign.id);
   const setStatus = useSetCampaignStatus(campaign.id);
+  const confirm = useConfirm();
+
+  const closeCampaign = async () => {
+    const confirmed = await confirm({
+      title: 'Close this campaign?',
+      message: 'Creators will no longer be able to submit to it. This cannot be undone.',
+      confirmLabel: 'Close campaign',
+      tone: 'danger',
+    });
+    if (confirmed) setStatus.mutate('closed');
+  };
 
   const spentRatio = campaign.budget.minorUnits
     ? Math.min(1, campaign.budgetSpent.minorUnits / campaign.budget.minorUnits)
@@ -43,7 +54,7 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
             fullWidth={false}
             size="sm"
             loading={setStatus.isPending}
-            onClick={() => setStatus.mutate('closed')}
+            onClick={closeCampaign}
           >
             Close campaign
           </Button>
@@ -90,8 +101,18 @@ const STATUS_TONE = {
 
 function SubmissionRow({ submission, campaignId }: { submission: Submission; campaignId: string }) {
   const review = useReviewSubmission(campaignId);
+  const confirm = useConfirm();
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
+
+  const approve = async () => {
+    const confirmed = await confirm({
+      title: 'Approve this submission?',
+      message: `${submission.creatorHandle} will be paid for their verified views on this post.`,
+      confirmLabel: 'Approve',
+    });
+    if (confirmed) review.mutate({ submissionId: submission.id, decision: 'approve' });
+  };
 
   return (
     <Card className="p-4">
@@ -111,12 +132,7 @@ function SubmissionRow({ submission, campaignId }: { submission: Submission; cam
 
       {submission.status === 'pending' ? (
         <div className="mt-3 flex gap-2">
-          <Button
-            size="sm"
-            fullWidth={false}
-            loading={review.isPending}
-            onClick={() => review.mutate({ submissionId: submission.id, decision: 'approve' })}
-          >
+          <Button size="sm" fullWidth={false} loading={review.isPending} onClick={approve}>
             Approve
           </Button>
           <Button size="sm" variant="secondary" fullWidth={false} onClick={() => setRejecting(true)}>

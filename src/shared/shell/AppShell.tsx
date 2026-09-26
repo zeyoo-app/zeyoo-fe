@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, LogOut, Moon, Settings, Sun } from 'lucide-react';
 
-import { Logo, cn, useTheme } from '@/design-system';
+import { Logo, cn, useConfirm, useTheme } from '@/design-system';
 import type { Role } from '@/shared/api';
 import { useAuthStore, useRequireRole } from '@/shared/auth';
 
@@ -123,13 +123,19 @@ function ThemeToggle() {
 
 function SignOutButton() {
   const router = useRouter();
+  const confirm = useConfirm();
   const signOut = useAuthStore((state) => state.signOut);
+
+  const handleSignOut = async () => {
+    const confirmed = await confirm({ title: 'Sign out?', confirmLabel: 'Sign out', tone: 'danger' });
+    if (!confirmed) return;
+    signOut();
+    router.replace('/sign-in');
+  };
+
   return (
     <button
-      onClick={() => {
-        signOut();
-        router.replace('/sign-in');
-      }}
+      onClick={handleSignOut}
       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-text-muted hover:bg-surface-hover hover:text-text"
     >
       <LogOut className="size-5" />

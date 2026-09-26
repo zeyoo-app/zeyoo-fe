@@ -5,7 +5,7 @@ import { useEffect, type ReactNode } from 'react';
 import { ApiProvider } from '@/shared/api';
 import { useAuthStore } from '@/shared/auth';
 import { I18nProvider } from '@/shared/i18n';
-import { ThemeProvider } from '@/design-system';
+import { ConfirmProvider, ThemeProvider } from '@/design-system';
 
 function AuthHydrator({ children }: { children: ReactNode }) {
   const hydrate = useAuthStore((state) => state.hydrate);
@@ -21,7 +21,9 @@ export function Providers({ children }: { children: ReactNode }) {
     <ThemeProvider>
       <I18nProvider>
         <ApiProvider>
-          <AuthHydrator>{children}</AuthHydrator>
+          <ConfirmProvider>
+            <AuthHydrator>{children}</AuthHydrator>
+          </ConfirmProvider>
         </ApiProvider>
       </I18nProvider>
     </ThemeProvider>
