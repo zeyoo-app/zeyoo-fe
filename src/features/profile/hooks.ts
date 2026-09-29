@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys, useApi } from '@/shared/api';
-import type { CreatorProfile, SocialPlatform, UpdateProfileInput } from '@/shared/api';
+import type { CreatorProfile, SocialPlatform, UpdateBrandProfileInput, UpdateProfileInput } from '@/shared/api';
 
 export function useCreatorProfile() {
   const api = useApi();
@@ -13,6 +13,15 @@ export function useCreatorProfile() {
 export function useBrandProfile() {
   const api = useApi();
   return useQuery({ queryKey: queryKeys.brandProfile, queryFn: () => api.getBrandProfile() });
+}
+
+export function useUpdateBrandProfile() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateBrandProfileInput) => api.updateBrandProfile(input),
+    onSuccess: (profile) => queryClient.setQueryData(queryKeys.brandProfile, profile),
+  });
 }
 
 /** Caches the returned profile so every creator-profile mutation refreshes the view. */

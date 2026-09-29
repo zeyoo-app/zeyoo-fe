@@ -1,30 +1,15 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
-import { Card, PageHeader, Switch, cn } from '@/design-system';
-import { queryKeys, useApi } from '@/shared/api';
-import type { NotificationPreferences } from '@/shared/api';
+import { Card, PageHeader, Switch, cn, useTheme } from '@/design-system';
 import { LOCALE_LABELS, LOCALES, useI18n } from '@/shared/i18n';
-import { useTheme } from '@/design-system';
-
-type PreferenceKey = keyof NotificationPreferences;
-
-const PREFERENCE_LABELS: Record<PreferenceKey, string> = {
-  submissionUpdates: 'Submission updates',
-  payoutUpdates: 'Payout updates',
-  campaignInvites: 'Campaign invites',
-  productNews: 'Product news',
-};
 
 export function SettingsScreen() {
   return (
     <>
-      <PageHeader title="Settings" subtitle="Appearance, notifications, and language." />
+      <PageHeader title="Settings" subtitle="Appearance and language." />
       <div className="flex max-w-2xl flex-col gap-5">
         <AppearanceCard />
         <LanguageCard />
-        <NotificationPreferencesCard />
       </div>
     </>
   );
@@ -60,39 +45,6 @@ function LanguageCard() {
           >
             {LOCALE_LABELS[value]}
           </button>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function NotificationPreferencesCard() {
-  const api = useApi();
-  const queryClient = useQueryClient();
-  const query = useQuery({ queryKey: queryKeys.notificationPreferences, queryFn: () => api.getNotificationPreferences() });
-  const update = useMutation({
-    mutationFn: (prefs: NotificationPreferences) => api.updateNotificationPreferences(prefs),
-    onSuccess: (prefs) => queryClient.setQueryData(queryKeys.notificationPreferences, prefs),
-  });
-
-  const prefs = query.data;
-
-  return (
-    <Card>
-      <p className="mb-3 text-sm font-medium text-text">Notifications</p>
-      <div className="flex flex-col gap-4">
-        {(Object.keys(PREFERENCE_LABELS) as PreferenceKey[]).map((key) => (
-          <div key={key} className="flex items-center justify-between">
-            <span className="text-sm text-text">{PREFERENCE_LABELS[key]}</span>
-            <Switch
-              checked={prefs?.[key] ?? false}
-              onChange={(value) => {
-                if (!prefs) return;
-                update.mutate({ ...prefs, [key]: value });
-              }}
-              label={PREFERENCE_LABELS[key]}
-            />
-          </div>
         ))}
       </div>
     </Card>

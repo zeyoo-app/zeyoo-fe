@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { LifeBuoy } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 import { AsyncContent, Badge, Button, Card, EmptyState, Modal, PageHeader, Textarea } from '@/design-system';
 import type { CreatorSubmission } from '@/shared/api';
@@ -17,19 +16,16 @@ export function MySubmissionsScreen() {
 
   return (
     <>
-      <PageHeader
-        title="My submissions"
-        subtitle="Track status, earnings, and payout holds."
-        action={
-          <Link href="/creator/disputes" className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover">
-            <LifeBuoy className="size-4" /> Disputes
-          </Link>
-        }
-      />
+      <PageHeader title="My submissions" subtitle="Track status, earnings, and payout holds." />
       <AsyncContent isLoading={query.isLoading} isError={query.isError} data={query.data}>
         {(submissions) =>
           submissions.length === 0 ? (
-            <EmptyState title="No submissions yet" description="Join a campaign from Discover to get started." />
+            <EmptyState
+              spacious
+              icon="📋"
+              title="No submissions yet"
+              description="Submit content for a campaign and its status will show up here."
+            />
           ) : (
             <div className="flex flex-col gap-3">
               {submissions.map((submission) => (
@@ -44,6 +40,7 @@ export function MySubmissionsScreen() {
 }
 
 function SubmissionRow({ submission }: { submission: CreatorSubmission }) {
+  const router = useRouter();
   const dispute = useOpenDispute();
   const [appealing, setAppealing] = useState(false);
   const [reason, setReason] = useState('');
@@ -84,7 +81,9 @@ function SubmissionRow({ submission }: { submission: CreatorSubmission }) {
           onClick={() =>
             dispute.mutate(
               { submissionId: submission.id, reason: reason.trim() },
-              { onSuccess: () => setAppealing(false) },
+              // Disputes and appeals live on one screen, so the appeal lands
+              // the creator there to watch its status — the only way in.
+              { onSuccess: () => router.replace('/creator/disputes') },
             )
           }
         >

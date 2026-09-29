@@ -2,77 +2,134 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
-import { Button, Field, SegmentedToggle } from '@/design-system';
 import type { Role } from '@/shared/api';
-import { useI18n } from '@/shared/i18n';
+import { routeForSession } from '@/shared/auth';
 
-import { AuthShell, OrDivider } from './AuthShell';
-import { SocialAuthButtons } from './SocialAuthButtons';
-import { useSignUp } from './hooks';
+import { AuthTopShell } from './AuthShell';
+import { StepAccount } from './StepAccount';
+import { StepCode } from './StepCode';
+import { StepDetails } from './StepDetails';
+import { StepHeader } from './StepHeader';
+import { useSignUp, useVerifyEmail } from './hooks';
 
-const ROLE_OPTIONS: { value: Role; label: string }[] = [
-  { value: 'brand', label: 'Company' },
-  { value: 'creator', label: 'Creator' },
-];
+const TOTAL_STEPS = 3;
 
+const DETAILS_COPY: Record<Role, { title: string; subtitle: string }> = {
+  brand: {
+    title: 'Create Brand Account',
+    subtitle: 'Create your account to launch campaigns and reward creators.',
+  },
+  creator: {
+    title: 'Create Creator Account',
+    subtitle: 'Create your account to get paid by the brands you love.',
+  },
+};
+
+/**
+ * Sign-up as a three-step widget: pick the account type, then the details. The
+ * verification code is not a step of its own — it renders inside step 2 once the
+ * account exists, and the confirmed session continues to profile setup.
+ */
 export function SignUpScreen() {
-  const { t } = useI18n();
+  const router = useRouter();
   const { signUp, isPending, error } = useSignUp();
-  const [role, setRole] = useState<Role>('creator');
+  const { verify, resend, isPending: isVerifying, isResending, error: verifyError, resent } =
+    useVerifyEmail();
+  const [step, setStep] = useState(1);
+  const [role, setRole] = useState<Role>('brand');
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [awaitingCode, setAwaitingCode] = useState(false);
 
-  const canContinue = email.includes('@') && password.length >= 8 && !isPending;
+  async function submitDetails() {
+    const session = await signUp(email.trim(), role);
+    if (session) setAwaitingCode(true);
+  }
 
   return (
-    <AuthShell tagline={t('auth.tagline')}>
-      <SegmentedToggle
-        options={ROLE_OPTIONS}
-        value={role}
-        onChange={setRole}
-        ariaLabel="Are you creating a Company or a Creator account?"
+    <AuthTopShell>
+      <StepHeader
+        // The creator onboarding is a three-step flow: account, verification,
+        // then profile setup. The indicator stays on the account step so the
+        // verification step doesn't look skipped.
+        step={step}
+        total={TOTAL_STEPS}
+        onBack={step === 2 ? () => setStep(1) : undefined}
+        title={step === 1 ? undefined : awaitingCode ? 'Verify your email' : DETAILS_COPY[role].title}
+        subtitle={
+          step === 1
+            ? 'Get paid to create. Get campaigns done.'
+            : awaitingCode
+              ? `We sent a 6-digit code to ${email.trim()}. Enter it below.`
+              : DETAILS_COPY[role].subtitle
+        }
       />
 
-      <form
-        className="flex flex-col gap-4"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (canContinue) signUp(email, password, role);
-        }}
-      >
-        <Field
-          label={t('auth.email')}
-          type="email"
-          autoComplete="email"
-          placeholder="you@email.com"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+      {step === 1 ? (
+        <StepAccount
+          role={role}
+          onRoleChange={setRole}
+          email={email}
+          onEmailChange={setEmail}
+          onContinue={() => setStep(2)}
+        />
+      ) : awaitingCode ? (
+        <StepCode
+          onVerify={async (code) => {
+            const session = await verify(code);
+            if (!session) return;
+            const path = routeForSession(session);
+            // Step 3 is the profile setup screen, which opens with the name just given.
+            router.replace(path.endsWith('/setup') ? `${path}?name=${encodeURIComponent(fullName.trim())}` : path);
+          }}
+          isPending={isVerifying}
+          error={verifyError}
+          onResend={resend}
+          isResending={isResending}
+          resent={resent}
+          onUseDifferentEmail={() => setAwaitingCode(false)}
+        />
+      ) : (
+        <StepDetails
+          role={role}
+          fullName={fullName}
+          onFullNameChange={setFullName}
+          email={email}
+          onEmailChange={setEmail}
+          onContinue={submitDetails}
+          isPending={isPending}
           error={error ?? undefined}
         />
-        <Field
-          label={t('auth.password')}
-          type="password"
-          autoComplete="new-password"
-          placeholder="8+ characters"
-          maxLength={128}
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-        />
-        <Button type="submit" loading={isPending} disabled={!canContinue}>
-          {t('auth.createAccount')}
-        </Button>
-      </form>
+      )}
 
-      <OrDivider label={t('auth.or')} />
-      <SocialAuthButtons role={role} />
+      {step === 2 ? (
+        <p className="text-center text-xs text-text-tertiary">
+          By continuing, you agree to Zeyoo&apos;s{' '}
+          <Link href="/settings/legal" className="text-text-muted">
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link href="/settings/legal" className="text-text-muted">
+            Privacy Policy
+          </Link>
+          .
+        </p>
+      ) : null}
 
-      <p className="text-center text-xs text-text-muted">
-        {t('auth.haveAccount')}{' '}
-        <Link href="/sign-in" className="font-medium text-green-text">
-          {t('auth.signIn')}
-        </Link>
-      </p>
-    </AuthShell>
+      <Link
+        href="/sign-in"
+        aria-label={
+          step === 1
+            ? 'New here? Creating an account takes 30 seconds. Sign in.'
+            : 'Already have an account? Sign in.'
+        }
+        className="self-center p-2 text-center text-xs text-text-muted"
+      >
+        {step === 1 ? 'New here? Creating an account takes 30 seconds… ' : 'Already have an account? '}
+        <span className="font-medium text-green-text">Sign in</span>
+      </Link>
+    </AuthTopShell>
   );
 }

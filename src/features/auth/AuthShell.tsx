@@ -20,6 +20,24 @@ export function AuthShell({ children, tagline }: { children: ReactNode; tagline?
   );
 }
 
+/**
+ * The opening layout of sign-up and sign-in: a left-aligned wordmark at the top of
+ * the page, the steps flowing under it. The first step leads with the logo instead of
+ * a back button, so nothing is centered.
+ */
+export function AuthTopShell({ children }: { children: ReactNode }) {
+  return (
+    <main className="flex min-h-dvh flex-col bg-bg px-4 py-12">
+      <div className="mx-auto flex w-full max-w-sm flex-1 flex-col gap-4">
+        <Link href="/" aria-label="Zeyoo home" className="w-fit">
+          <Logo height={37} />
+        </Link>
+        {children}
+      </div>
+    </main>
+  );
+}
+
 /** A hairline rule with a centred word, separating primary auth from social. */
 export function OrDivider({ label }: { label: string }) {
   return (

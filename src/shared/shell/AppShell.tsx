@@ -8,6 +8,8 @@ import { Bell, LogOut, Moon, Settings, Sun } from 'lucide-react';
 import { Logo, cn, useConfirm, useTheme } from '@/design-system';
 import type { Role } from '@/shared/api';
 import { useAuthStore, useRequireRole } from '@/shared/auth';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
+import { useUnreadCount } from '@/features/notifications/hooks';
 
 import { LocaleSwitcher } from './LocaleSwitcher';
 
@@ -78,9 +80,14 @@ function Sidebar({ nav }: { nav: NavItem[] }) {
 }
 
 function SidebarFooter() {
+  const unread = useUnreadCount();
   return (
     <div className="flex flex-col gap-1 border-t border-border pt-3">
-      <SidebarLink href="/notifications" icon={Bell} label="Notifications" />
+      <SidebarLink
+        href="/notifications"
+        icon={Bell}
+        label={unread > 0 ? `Notifications (${unread})` : 'Notifications'}
+      />
       <SidebarLink href="/settings" icon={Settings} label="Settings" />
       <div className="flex items-center gap-1 px-1">
         <ThemeToggle />
@@ -151,10 +158,8 @@ function MobileTopBar() {
       <div className="flex items-center gap-1">
         <ThemeToggle />
         <LocaleSwitcher />
-        <Link href="/notifications" aria-label="Notifications" className="rounded-lg p-2 text-text-muted hover:bg-surface-hover">
-          <Bell className="size-5" />
-        </Link>
       </div>
+      <NotificationBell />
     </header>
   );
 }

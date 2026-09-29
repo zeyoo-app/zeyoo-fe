@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 
-import { AsyncContent, Avatar, Badge, Button, Card, Modal, Textarea, useConfirm } from '@/design-system';
+import { AsyncContent, Avatar, Badge, Button, Card, Modal, ProgressBar, Textarea, useConfirm } from '@/design-system';
 import type { Campaign, Submission } from '@/shared/api';
 import { formatCount, formatMoney } from '@/shared/money/money';
+import { BackButton } from '@/shared/nav/BackButton';
 
 import { CampaignCover } from './CampaignCover';
 import { useCampaign, useSetCampaignStatus } from './hooks';
@@ -17,6 +18,34 @@ export function CampaignDetailBrandScreen({ campaignId }: { campaignId: string }
     <AsyncContent isLoading={campaignQuery.isLoading} isError={campaignQuery.isError} data={campaignQuery.data}>
       {(campaign) => <CampaignDetail campaign={campaign} />}
     </AsyncContent>
+  );
+}
+
+/** The one action the current lifecycle state allows: publish a draft, close a live
+ *  campaign. The caller hides it entirely once the campaign is closed. */
+function LifecycleAction({
+  campaign,
+  onClose,
+  loading,
+}: {
+  campaign: Campaign;
+  onClose: () => void;
+  loading: boolean;
+}) {
+  const setStatus = useSetCampaignStatus(campaign.id);
+
+  if (campaign.status === 'draft') {
+    return (
+      <Button size="sm" fullWidth={false} loading={loading} onClick={() => setStatus.mutate('live')}>
+        Publish
+      </Button>
+    );
+  }
+
+  return (
+    <Button variant="secondary" size="sm" fullWidth={false} loading={loading} onClick={onClose}>
+      Close Campaign
+    </Button>
   );
 }
 
@@ -36,44 +65,46 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
   };
 
   const spentRatio = campaign.budget.minorUnits
-    ? Math.min(1, campaign.budgetSpent.minorUnits / campaign.budget.minorUnits)
+    ? campaign.budgetSpent.minorUnits / campaign.budget.minorUnits
     : 0;
 
   return (
     <>
-      <CampaignCover platform={campaign.platform} className="mb-5 h-40 rounded-2xl" />
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold text-text">{campaign.title}</h1>
-          <p className="mt-0.5 text-text-muted">{campaign.brandName}</p>
-        </div>
-        {campaign.status === 'live' ? (
-          <Button
-            variant="secondary"
-            fullWidth={false}
-            size="sm"
-            loading={setStatus.isPending}
-            onClick={closeCampaign}
-          >
-            Close campaign
-          </Button>
-        ) : (
-          <Badge tone="neutral">Closed</Badge>
-        )}
+      {/* The lifecycle action belongs to the top bar, opposite the back affordance, and
+          disappears once the campaign is closed — there is nothing left to do. */}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <BackButton />
+        {campaign.status !== 'closed' ? (
+          <LifecycleAction campaign={campaign} onClose={closeCampaign} loading={setStatus.isPending} />
+        ) : null}
       </div>
 
-      <Card className="mt-5">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-text-muted">Budget spent</span>
-          <span className="font-numeric text-text">
-            {formatMoney(campaign.budgetSpent)} / {formatMoney(campaign.budget)}
+      <CampaignCover platform={campaign.platform} className="mb-5 h-40 rounded-2xl" />
+
+      <div>
+        <h1 className="font-display text-2xl font-semibold text-text">{campaign.title}</h1>
+        <p className="mt-0.5 text-text-muted">{campaign.brandName}</p>
+      </div>
+
+      <Card className="mt-5 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Budget spent</p>
+          <p className="text-xs text-text-tertiary">{campaign.submissionCount} submissions</p>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-numeric text-2xl leading-none text-green-text">
+            {formatMoney(campaign.budgetSpent)}
           </span>
+          <span className="font-numeric text-sm text-text-muted">/ {formatMoney(campaign.budget)}</span>
         </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-raised">
-          <div className="h-full rounded-full bg-primary" style={{ width: `${spentRatio * 100}%` }} />
-        </div>
+        <ProgressBar value={spentRatio} tone={spentRatio > 0.9 ? 'warning' : 'accent'} label="Budget spent" />
       </Card>
+
+      {campaign.status === 'closed' ? (
+        <Card className="mt-5">
+          <p className="text-sm text-text-muted">This campaign is closed.</p>
+        </Card>
+      ) : null}
 
       <p className="mt-5 text-sm leading-relaxed text-text-muted">{campaign.brief}</p>
 

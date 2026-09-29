@@ -18,7 +18,16 @@ export type { ConfirmOptions } from './ui/ConfirmDialog';
 export { Switch } from './ui/Switch';
 export { SegmentedToggle } from './ui/SegmentedToggle';
 export type { SegmentOption } from './ui/SegmentedToggle';
+export { ListRow } from './ui/ListRow';
+export { Divider } from './ui/Divider';
+export { SelectField } from './ui/SelectField';
+export { ChoiceChips } from './ui/ChoiceChips';
+export type { Choice } from './ui/ChoiceChips';
+export { ImageUpload } from './ui/ImageUpload';
+export type { PickedImage } from './ui/ImageUpload';
+export { ProgressBar } from './ui/ProgressBar';
 
 export { PageHeader } from './patterns/PageHeader';
+export { SectionHeader } from './patterns/SectionHeader';
 export { EmptyState } from './patterns/EmptyState';
 export { AsyncContent } from './patterns/AsyncContent';

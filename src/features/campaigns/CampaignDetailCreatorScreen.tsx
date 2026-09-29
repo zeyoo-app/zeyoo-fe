@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ChevronRight } from 'lucide-react';
 
 import { AsyncContent, Badge, Button, Card, Field, SegmentedToggle } from '@/design-system';
 import type { Campaign, SubmissionKind } from '@/shared/api';
@@ -68,7 +69,19 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
         </div>
       ) : null}
 
-      <Card className="mt-8">
+      <button
+        type="button"
+        onClick={() => router.push(`/creator/campaigns/${campaign.id}/submissions`)}
+        className="mt-8 flex w-full items-center gap-3 rounded-2xl border border-border bg-surface p-5 text-start transition-colors hover:bg-surface-hover"
+      >
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-lg font-semibold text-text">See Community Submissions</h2>
+          <p className="text-sm text-text-muted">Get inspired by other creators&apos; videos</p>
+        </div>
+        <ChevronRight className="size-[22px] shrink-0 text-text-muted" aria-hidden />
+      </button>
+
+      <Card className="mt-4">
         <h2 className="font-display text-lg font-semibold text-text">Submit your content</h2>
         <div className="mt-3 max-w-xs">
           <SegmentedToggle options={KIND_OPTIONS} value={kind} onChange={setKind} ariaLabel="Submission type" />

@@ -1,4 +1,5 @@
 import type {
+  AddPaymentMethodInput,
   AiBriefRequest,
   AiBriefResult,
   AiIdeasRequest,
@@ -7,11 +8,15 @@ import type {
   BillingPlan,
   BrandBilling,
   BrandDashboard,
+  BrandLedgerEntry,
   BrandProfile,
+  BrandSetupInput,
   Campaign,
+  CampaignCategory,
   CreateCampaignInput,
   CreatorDirectoryEntry,
   CreatorProfile,
+  CreatorSetupInput,
   CreatorSubmission,
   Dispute,
   InviteCreatorInput,
@@ -26,6 +31,7 @@ import type {
   Session,
   Submission,
   SubmitParticipationInput,
+  UpdateBrandProfileInput,
   UpdateProfileInput,
   VerifyEmailInput,
   WalletSummary,
@@ -38,9 +44,12 @@ import type {
  * receive it through `useApi()` and never construct their own transport.
  */
 export interface ZeyooApi {
-  signIn(input: { email: string; password: string }): Promise<Session>;
+  /** Request a one-time sign-in code (backend: POST /auth/login/code). */
+  requestSignInCode(input: { email: string }): Promise<void>;
+  /** Exchange an emailed sign-in code for a session (backend: POST /auth/login/code/verify). */
+  signInWithCode(input: { email: string; code: string }): Promise<Session>;
   /** Create an account and start an authenticated session (backend: POST /auth/register). */
-  signUp(input: { email: string; password: string; role: Role }): Promise<Session>;
+  signUp(input: { email: string; role: Role }): Promise<Session>;
   /** Sign in (or sign up) with a Google/Apple ID token (backend: POST /auth/oauth/:provider). */
   oauthSignIn(input: OAuthSignInInput): Promise<Session>;
   /** Confirm the signed-in account's email with the 6-digit code (backend: POST /auth/email/verify). */
@@ -52,10 +61,16 @@ export interface ZeyooApi {
   /** Complete a password reset with the emailed code (backend: POST /auth/password/reset). */
   resetPassword(input: ResetPasswordInput): Promise<void>;
 
+  /** First-run brand setup, completed as step 3 of sign-up (backend: POST /organizations). */
+  setupBrand(input: BrandSetupInput): Promise<Session>;
+  /** First-run creator setup, completed as step 3 of sign-up. */
+  setupCreator(input: CreatorSetupInput): Promise<Session>;
+
   // Campaigns (shared reads; brand writes)
   getBrandDashboard(): Promise<BrandDashboard>;
   getBrandCampaigns(): Promise<Campaign[]>;
   getCampaign(campaignId: string): Promise<Campaign>;
+  getCampaignCategories(): Promise<CampaignCategory[]>;
   createCampaign(input: CreateCampaignInput): Promise<Campaign>;
   setCampaignStatus(input: { campaignId: string; status: Campaign['status'] }): Promise<Campaign>;
   getDiscoverCampaigns(): Promise<Campaign[]>;
@@ -74,10 +89,14 @@ export interface ZeyooApi {
 
   // Brand billing
   getBrandBilling(): Promise<BrandBilling>;
+  /** Money movements on the brand wallet: top-ups in, campaign funding out. */
+  getBrandLedger(): Promise<BrandLedgerEntry[]>;
   setBillingPlan(plan: BillingPlan): Promise<BrandBilling>;
+  setBrandPaymentMethod(input: AddPaymentMethodInput): Promise<BrandBilling>;
 
   // Profile, verification, socials
   getBrandProfile(): Promise<BrandProfile>;
+  updateBrandProfile(input: UpdateBrandProfileInput): Promise<BrandProfile>;
   getCreatorProfile(): Promise<CreatorProfile>;
   updateProfile(input: UpdateProfileInput): Promise<CreatorProfile>;
   startVerification(): Promise<CreatorProfile>;

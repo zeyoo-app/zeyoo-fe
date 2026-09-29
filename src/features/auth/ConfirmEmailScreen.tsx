@@ -1,18 +1,25 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { Button } from '@/design-system';
-import { useAuthStore } from '@/shared/auth';
+import { routeForSession, useAuthStore } from '@/shared/auth';
 
 import { AuthShell } from './AuthShell';
 import { CodeInput } from './CodeInput';
 import { useVerifyEmail } from './hooks';
 
 export function ConfirmEmailScreen() {
+  const router = useRouter();
   const signOut = useAuthStore((state) => state.signOut);
   const { verify, resend, isPending, isResending, error, resent } = useVerifyEmail();
   const [code, setCode] = useState('');
+
+  const useDifferentAccount = () => {
+    signOut();
+    router.replace('/sign-in');
+  };
 
   return (
     <AuthShell>
@@ -23,12 +30,28 @@ export function ConfirmEmailScreen() {
         </p>
       </div>
 
-      <CodeInput value={code} onChange={setCode} onComplete={verify} autoFocus error={error != null} />
+      <CodeInput
+        value={code}
+        onChange={setCode}
+        onComplete={async (value) => {
+          const session = await verify(value);
+          if (session) router.replace(routeForSession(session));
+        }}
+        autoFocus
+        error={error != null}
+      />
 
       {error ? <p className="text-xs text-danger">{error}</p> : null}
       {resent ? <p className="text-xs text-green-text">A new code is on its way.</p> : null}
 
-      <Button loading={isPending} disabled={code.length < 6 || isPending} onClick={() => verify(code)}>
+      <Button
+        loading={isPending}
+        disabled={code.length < 6 || isPending}
+        onClick={async () => {
+          const session = await verify(code);
+          if (session) router.replace(routeForSession(session));
+        }}
+      >
         Verify
       </Button>
 
@@ -41,7 +64,7 @@ export function ConfirmEmailScreen() {
           Didn&apos;t get it?{' '}
           <span className="font-medium text-green-text">{isResending ? 'Sending…' : 'Resend code'}</span>
         </button>
-        <button onClick={signOut} className="text-xs text-text-tertiary">
+        <button onClick={useDifferentAccount} className="text-xs text-text-tertiary">
           Use a different account
         </button>
       </div>

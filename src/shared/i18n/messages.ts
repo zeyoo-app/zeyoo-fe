@@ -26,14 +26,11 @@ type MessageKey =
   | 'nav.signOut'
   | 'auth.tagline'
   | 'auth.email'
-  | 'auth.password'
   | 'auth.continue'
   | 'auth.signIn'
   | 'auth.createAccount'
-  | 'auth.forgotPassword'
   | 'auth.or'
   | 'auth.google'
-  | 'auth.apple'
   | 'auth.newHere'
   | 'auth.haveAccount'
   | 'landing.cta'
@@ -55,14 +52,11 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'nav.signOut': 'Sign out',
     'auth.tagline': 'Get paid to create. Get campaigns done.',
     'auth.email': 'Email',
-    'auth.password': 'Password',
     'auth.continue': 'Continue',
     'auth.signIn': 'Sign in',
     'auth.createAccount': 'Create account',
-    'auth.forgotPassword': 'Forgot password?',
     'auth.or': 'or',
     'auth.google': 'Continue with Google',
-    'auth.apple': 'Continue with Apple',
     'auth.newHere': 'New here?',
     'auth.haveAccount': 'Already have an account?',
     'landing.cta': 'Get started',
@@ -83,14 +77,11 @@ export const messages: Record<Locale, Record<MessageKey, string>> = {
     'nav.signOut': 'تسجيل الخروج',
     'auth.tagline': 'اربح من صناعة المحتوى. أنجز حملاتك.',
     'auth.email': 'البريد الإلكتروني',
-    'auth.password': 'كلمة المرور',
     'auth.continue': 'متابعة',
     'auth.signIn': 'تسجيل الدخول',
     'auth.createAccount': 'إنشاء حساب',
-    'auth.forgotPassword': 'نسيت كلمة المرور؟',
     'auth.or': 'أو',
     'auth.google': 'المتابعة مع Google',
-    'auth.apple': 'المتابعة مع Apple',
     'auth.newHere': 'جديد هنا؟',
     'auth.haveAccount': 'لديك حساب بالفعل؟',
     'landing.cta': 'ابدأ الآن',

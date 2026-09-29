@@ -2,17 +2,19 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { X } from 'lucide-react';
 
 import { Button, Card, Field, PageHeader, Switch, Textarea, cn } from '@/design-system';
 import type { CreateCampaignInput, Money, SocialPlatform } from '@/shared/api';
+import { platformLabel } from '@/shared/format/platform';
 
 import { useCreateCampaign } from './hooks';
 
-const PLATFORMS: { value: SocialPlatform; label: string }[] = [
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'tiktok', label: 'TikTok' },
-  { value: 'youtube', label: 'YouTube' },
-];
+// Brands brief on the three platforms campaigns can run on today; Snapchat is
+// connectable for creators but not yet a campaign target.
+const PLATFORMS: { value: SocialPlatform; label: string }[] = (['instagram', 'tiktok', 'youtube'] as const).map(
+  (value) => ({ value, label: platformLabel(value) }),
+);
 
 const USD = 'USD';
 const MINOR_UNITS_PER_MAJOR = 100;
@@ -42,7 +44,19 @@ export function CreateCampaignScreen() {
   const [cap, setCap] = useState('50.00');
   const [hashtags, setHashtags] = useState('');
   const [mentions, setMentions] = useState('');
+  const [contentRules, setContentRules] = useState<string[]>([]);
+  const [ruleDraft, setRuleDraft] = useState('');
   const [disclosure, setDisclosure] = useState(true);
+
+  const addRule = () => {
+    const rule = ruleDraft.trim();
+    if (!rule || contentRules.includes(rule)) {
+      setRuleDraft('');
+      return;
+    }
+    setContentRules([...contentRules, rule]);
+    setRuleDraft('');
+  };
 
   const canPublish = title.trim().length > 2 && brief.trim().length > 10 && !createCampaign.isPending;
 
@@ -57,6 +71,7 @@ export function CreateCampaignScreen() {
       requirements: {
         hashtags: parseList(hashtags),
         mentions: parseList(mentions),
+        contentRules,
         disclosureRequired: disclosure,
       },
     };
@@ -101,6 +116,46 @@ export function CreateCampaignScreen() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Hashtags" placeholder="#GlowWithNimbus" value={hashtags} onChange={(event) => setHashtags(event.target.value)} />
           <Field label="Mentions" placeholder="@glowbeauty" value={mentions} onChange={(event) => setMentions(event.target.value)} />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <p className="text-[13px] font-medium text-text-muted">Content rules</p>
+          <div className="flex gap-2">
+            <Field
+              placeholder="Show the product in the first 3 seconds"
+              value={ruleDraft}
+              onChange={(event) => setRuleDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  addRule();
+                }
+              }}
+            />
+            <Button variant="secondary" fullWidth={false} onClick={addRule}>
+              Add
+            </Button>
+          </div>
+          {contentRules.length ? (
+            <ul className="mt-1 flex flex-col gap-1.5">
+              {contentRules.map((rule) => (
+                <li
+                  key={rule}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface-raised px-3 py-2 text-sm text-text"
+                >
+                  <span>{rule}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove rule: ${rule}`}
+                    onClick={() => setContentRules(contentRules.filter((entry) => entry !== rule))}
+                    className="rounded-lg p-1 text-text-muted transition-colors hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-primary"
+                  >
+                    <X className="size-4" aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
 
         <Card className="flex items-center justify-between">

@@ -1,25 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Bell, CreditCard, FileText, LifeBuoy, Link2, Settings } from 'lucide-react';
 
-import { AsyncContent, Avatar, Badge, Button, Card, Field, Modal, PageHeader, Textarea } from '@/design-system';
-import type { CreatorProfile, SocialAccount, SocialPlatform, VerificationStatus } from '@/shared/api';
-import { formatCount } from '@/shared/money/money';
+import {
+  AsyncContent,
+  Avatar,
+  Card,
+  Divider,
+  ListRow,
+  PageHeader,
+  useConfirm,
+} from '@/design-system';
+import { useAuthStore } from '@/shared/auth';
 
-import { useConnectSocial, useCreatorProfile, useStartVerification, useUpdateProfile } from './hooks';
+import { useCreatorProfile } from './hooks';
+import { SOCIAL_PLATFORMS } from './socialPlatforms';
 
-const VERIFICATION: Record<VerificationStatus, { label: string; tone: 'neutral' | 'warning' | 'success' }> = {
-  unverified: { label: 'Not verified', tone: 'neutral' },
-  pending: { label: 'Verification pending', tone: 'warning' },
-  verified: { label: 'Verified', tone: 'success' },
-};
-
-const PLATFORM_NAME: Record<SocialPlatform, string> = {
-  instagram: 'Instagram',
-  tiktok: 'TikTok',
-  youtube: 'YouTube',
-};
-
+/**
+ * The creator's account hub, mirroring the brand profile: who you are at the
+ * top, then the rows that change how you get paid, reach us, and stay in the
+ * loop. Sign-out lives here as well as in the shell, because the mobile tab bar
+ * has no room for it.
+ */
 export function CreatorProfileScreen() {
   const query = useCreatorProfile();
 
@@ -27,109 +30,101 @@ export function CreatorProfileScreen() {
     <>
       <PageHeader title="Profile" />
       <AsyncContent isLoading={query.isLoading} isError={query.isError} data={query.data}>
-        {(profile) => <ProfileBody profile={profile} />}
+        {(profile) => <ProfileBody displayName={profile.displayName} handle={profile.handle} connectedCount={profile.socialAccounts.filter((account) => account.connected).length} />}
       </AsyncContent>
     </>
   );
 }
 
-function ProfileBody({ profile }: { profile: CreatorProfile }) {
-  const startVerification = useStartVerification();
-  const [editing, setEditing] = useState(false);
-  const verification = VERIFICATION[profile.verification];
+function ProfileBody({
+  displayName,
+  handle,
+  connectedCount,
+}: {
+  displayName: string;
+  handle: string;
+  connectedCount: number;
+}) {
+  const router = useRouter();
+  const signOut = useAuthStore((state) => state.signOut);
+  const confirm = useConfirm();
+
+  async function onSignOut() {
+    const confirmed = await confirm({
+      title: 'Sign out?',
+      confirmLabel: 'Sign out',
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+    signOut();
+    router.replace('/sign-in');
+  }
 
   return (
-    <div className="flex flex-col gap-5">
-      <Card className="flex items-center gap-4">
-        <Avatar name={profile.displayName} size={56} />
-        <div>
-          <p className="font-display text-lg font-semibold text-text">{profile.displayName}</p>
-          <p className="text-sm text-text-muted">Creator account</p>
+    <div className="flex min-h-full flex-col">
+      <div className="flex items-center gap-3.5">
+        <Avatar name={displayName} size={52} />
+        <div className="min-w-0">
+          <p className="font-display text-[15px] font-semibold text-text">{displayName}</p>
+          <p className="truncate text-sm text-text-muted">{handle}</p>
         </div>
-      </Card>
+      </div>
 
-      <Card>
-        <div className="flex items-start justify-between">
-          <p className="font-display text-base font-semibold text-text">{profile.handle}</p>
-          <Button size="sm" variant="ghost" fullWidth={false} onClick={() => setEditing(true)}>
-            Edit
-          </Button>
-        </div>
-        <p className="mt-1 text-sm text-text-muted">{profile.bio}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {profile.categories.map((category) => (
-            <Badge key={category} tone="neutral">{category}</Badge>
-          ))}
-        </div>
-
-        <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
-          <div>
-            <p className="text-sm font-medium text-text">Identity verification</p>
-            <Badge tone={verification.tone} className="mt-1">{verification.label}</Badge>
-          </div>
-          {profile.verification === 'unverified' ? (
-            <Button size="sm" fullWidth={false} loading={startVerification.isPending} onClick={() => startVerification.mutate()}>
-              Verify
-            </Button>
-          ) : null}
-        </div>
-      </Card>
-
-      <div>
-        <h2 className="mb-3 font-display text-lg font-semibold text-text">Social accounts</h2>
-        <Card className="flex flex-col gap-4">
-          {profile.socialAccounts.map((account) => (
-            <SocialRow key={account.platform} account={account} />
-          ))}
+      <div className="mt-6">
+        <Card className="flex flex-col px-5 py-0">
+          <ListRow
+            title="Payout Method"
+            subtitle="Where your earnings are sent"
+            leading={<RowIcon icon={CreditCard} />}
+            onPress={() => router.push('/creator/payout-method')}
+          />
+          <Divider />
+          <ListRow
+            title="Connected Accounts"
+            subtitle={`${connectedCount} of ${SOCIAL_PLATFORMS.length} connected`}
+            leading={<RowIcon icon={Link2} />}
+            onPress={() => router.push('/creator/connected-accounts')}
+          />
+          <Divider />
+          <ListRow
+            title="Notifications"
+            subtitle="What Zeyoo sends you, and how often"
+            leading={<RowIcon icon={Bell} />}
+            onPress={() => router.push('/settings/notifications')}
+          />
+          <Divider />
+          <ListRow
+            title="Help & Support"
+            subtitle="Get paid, withdrawals, and contact us"
+            leading={<RowIcon icon={LifeBuoy} />}
+            onPress={() => router.push('/settings/help')}
+          />
+          <Divider />
+          <ListRow
+            title="Settings"
+            subtitle="Appearance and language"
+            leading={<RowIcon icon={Settings} />}
+            onPress={() => router.push('/settings')}
+          />
+          <Divider />
+          <ListRow
+            title="Legal & privacy"
+            subtitle="Terms, privacy policy"
+            leading={<RowIcon icon={FileText} />}
+            onPress={() => router.push('/settings/legal')}
+          />
+          <Divider />
+          <ListRow title="Log Out" tone="danger" onPress={onSignOut} />
         </Card>
       </div>
-
-      <EditProfileModal open={editing} onClose={() => setEditing(false)} profile={profile} />
     </div>
   );
 }
 
-function SocialRow({ account }: { account: SocialAccount }) {
-  const connect = useConnectSocial();
+function RowIcon({ icon: Icon }: { icon: typeof Settings }) {
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-sm font-medium text-text">{PLATFORM_NAME[account.platform]}</p>
-        <p className="text-xs text-text-muted">
-          {account.connected ? `${account.handle} · ${formatCount(account.followers)} followers` : 'Not connected'}
-        </p>
-      </div>
-      {account.connected ? (
-        <Badge tone="success">Connected</Badge>
-      ) : (
-        <Button size="sm" variant="secondary" fullWidth={false} loading={connect.isPending} onClick={() => connect.mutate(account.platform)}>
-          Connect
-        </Button>
-      )}
-    </div>
-  );
-}
-
-function EditProfileModal({ open, onClose, profile }: { open: boolean; onClose: () => void; profile: CreatorProfile }) {
-  const update = useUpdateProfile();
-  const [displayName, setDisplayName] = useState(profile.displayName);
-  const [bio, setBio] = useState(profile.bio);
-
-  return (
-    <Modal open={open} onClose={onClose} title="Edit profile">
-      <Field label="Display name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
-      <Textarea label="Bio" value={bio} onChange={(event) => setBio(event.target.value)} />
-      <Button
-        loading={update.isPending}
-        onClick={() =>
-          update.mutate(
-            { displayName, bio, categories: profile.categories },
-            { onSuccess: onClose },
-          )
-        }
-      >
-        Save changes
-      </Button>
-    </Modal>
+    <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface-raised">
+      <Icon className="size-[18px] text-text" aria-hidden />
+    </span>
   );
 }

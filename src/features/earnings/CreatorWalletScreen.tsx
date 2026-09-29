@@ -21,7 +21,7 @@ export function CreatorWalletScreen() {
         {(wallet) => <WalletBody wallet={wallet} />}
       </AsyncContent>
 
-      <h2 className="mb-3 mt-8 font-display text-lg font-semibold text-text">Activity</h2>
+      <h2 className="mb-3 mt-8 font-display text-lg font-semibold text-text">Earnings history</h2>
       <AsyncContent isLoading={ledgerQuery.isLoading} isError={ledgerQuery.isError} data={ledgerQuery.data}>
         {(entries) => (
           <div className="flex flex-col gap-2">
@@ -47,7 +47,7 @@ function WalletBody({ wallet }: { wallet: WalletSummary }) {
         <StatCard value={formatMoney(wallet.available)} label="Available" />
         <StatCard value={formatMoney(wallet.pending)} label="Pending" />
         <StatCard value={formatMoney(wallet.held)} label="On hold" />
-        <StatCard value={formatMoney(wallet.lifetimeEarned)} label="Lifetime" />
+        <StatCard value={formatMoney(wallet.lifetimeEarned)} label="Total earnings" />
       </div>
 
       <div className="mt-4">

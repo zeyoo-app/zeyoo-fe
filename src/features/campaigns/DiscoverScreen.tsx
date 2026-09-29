@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { AsyncContent, EmptyState, Field, PageHeader } from '@/design-system';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
 
 import { CampaignCard } from './CampaignCard';
 import { useDiscoverCampaigns } from './hooks';
@@ -13,7 +14,7 @@ export function DiscoverScreen() {
 
   return (
     <>
-      <PageHeader eyebrow="For you" title="Discover" subtitle="Fresh campaigns picked for you." />
+      <PageHeader title="Discover" subtitle="Fresh campaigns picked for you." action={<NotificationBell />} />
 
       <div className="mb-5 max-w-md">
         <Field
@@ -34,7 +35,18 @@ export function DiscoverScreen() {
               campaign.brandName.toLowerCase().includes(term),
           );
           if (visible.length === 0) {
-            return <EmptyState title="No campaigns match" description="Try a different search." />;
+            // Two different empties: a search that matched nothing is the
+            // searcher's problem, an empty feed is the platform's.
+            return term ? (
+              <EmptyState title="No campaigns found" description="Try a different search." />
+            ) : (
+              <EmptyState
+                spacious
+                icon="🔍"
+                title="No campaigns yet"
+                description="New brand campaigns will show up here — check back soon."
+              />
+            );
           }
           return (
             <div className="grid gap-4 sm:grid-cols-2">

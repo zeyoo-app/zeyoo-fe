@@ -8,6 +8,7 @@ import { cn } from '@/design-system';
 const GLOW_POSITION: Record<SocialPlatform, string> = {
   instagram: '50% 15%',
   tiktok: '65% 25%',
+  snapchat: '42% 30%',
   youtube: '35% 20%',
 };
 

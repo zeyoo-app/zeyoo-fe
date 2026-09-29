@@ -25,6 +25,15 @@ export function useCampaign(campaignId: string) {
   return useQuery({ queryKey: queryKeys.campaign(campaignId), queryFn: () => api.getCampaign(campaignId) });
 }
 
+export function useCampaignCategories() {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.campaignCategories,
+    queryFn: () => api.getCampaignCategories(),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useCreateCampaign() {
   const api = useApi();
   const queryClient = useQueryClient();

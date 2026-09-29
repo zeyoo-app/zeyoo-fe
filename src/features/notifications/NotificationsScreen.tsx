@@ -1,21 +1,14 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
 import { AsyncContent, Badge, Button, Card, EmptyState, PageHeader } from '@/design-system';
-import { queryKeys, useApi } from '@/shared/api';
 import type { AppNotification } from '@/shared/api';
 
-export function NotificationsScreen() {
-  const api = useApi();
-  const queryClient = useQueryClient();
-  const query = useQuery({ queryKey: queryKeys.notifications, queryFn: () => api.getNotifications() });
-  const markRead = useMutation({
-    mutationFn: () => api.markNotificationsRead(),
-    onSuccess: (updated) => queryClient.setQueryData(queryKeys.notifications, updated),
-  });
+import { useMarkNotificationsRead, useNotifications } from './hooks';
 
-  const hasUnread = query.data?.some((notification) => !notification.read);
+export function NotificationsScreen() {
+  const query = useNotifications();
+  const markRead = useMarkNotificationsRead();
+  const hasUnread = (query.data ?? []).some((notification) => !notification.read);
 
   return (
     <>

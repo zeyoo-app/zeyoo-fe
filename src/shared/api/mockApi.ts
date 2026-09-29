@@ -1,6 +1,8 @@
 import type { Money } from '../money/money';
+import { cardDigits, cardLast4, luhnValid } from '../format/card';
 import type { ZeyooApi } from './ZeyooApi';
 import type {
+  AddPaymentMethodInput,
   AiBriefRequest,
   AiBriefResult,
   AiIdeasResult,
@@ -8,8 +10,10 @@ import type {
   BillingPlan,
   BrandBilling,
   BrandDashboard,
+  BrandLedgerEntry,
   BrandProfile,
   Campaign,
+  CampaignCategory,
   CreateCampaignInput,
   CreatorDirectoryEntry,
   CreatorProfile,
@@ -23,6 +27,7 @@ import type {
   Session,
   Submission,
   SubmitParticipationInput,
+  UpdateBrandProfileInput,
   UpdateProfileInput,
   WalletSummary,
   WithdrawInput,
@@ -59,6 +64,15 @@ function daysAgo(days: number): string {
 
 const CAP = usd(5000); // $50 per-creator cap
 
+// The campaign taxonomy. A brand's industry is picked from the same list so a
+// brand and the campaigns it runs stay in one vocabulary.
+const campaignCategories: CampaignCategory[] = [
+  { id: 'category-beauty', name: 'Beauty', slug: 'beauty' },
+  { id: 'category-fashion', name: 'Fashion', slug: 'fashion' },
+  { id: 'category-food', name: 'Food & Drink', slug: 'food-drink' },
+  { id: 'category-technology', name: 'Technology', slug: 'technology' },
+];
+
 const campaigns: Campaign[] = [
   {
     id: 'summer-skincare',
@@ -76,6 +90,11 @@ const campaigns: Campaign[] = [
     requirements: {
       hashtags: ['#GlowWithNimbus'],
       mentions: ['@glowbeauty'],
+      contentRules: [
+        'Show the product clearly in the first 3 seconds',
+        'Include the campaign hashtag in your caption',
+        'No competitor branding visible',
+      ],
       disclosureRequired: true,
     },
     referenceMaterials: [
@@ -98,6 +117,7 @@ const campaigns: Campaign[] = [
     requirements: {
       hashtags: ['#NimbusLaunch'],
       mentions: ['@nimbusapp'],
+      contentRules: ['Show the Nimbus app in use within the first 3 seconds', 'No competing apps on screen'],
       disclosureRequired: true,
     },
     referenceMaterials: [
@@ -217,6 +237,7 @@ let creatorProfile: CreatorProfile = {
     { platform: 'instagram', handle: '@you', connected: true, followers: 48200 },
     { platform: 'tiktok', handle: '@you', connected: false, followers: 0 },
     { platform: 'youtube', handle: '', connected: false, followers: 0 },
+    { platform: 'snapchat', handle: '', connected: false, followers: 0 },
   ],
 };
 
@@ -239,6 +260,24 @@ let brandBilling: BrandBilling = {
   monthlySpend: usd(245000),
   totalFunded: usd(1420000),
   paymentMethodLast4: '4242',
+};
+
+const brandLedger: BrandLedgerEntry[] = [
+  { id: 'b1', kind: 'topup', description: 'Wallet top-up', amount: usd(50000), date: '2026-08-24T09:12:00.000Z' },
+  { id: 'b2', kind: 'campaign', description: 'Campaign: Summer Skincare', amount: usd(-12500), date: '2026-08-22T14:40:00.000Z' },
+  { id: 'b3', kind: 'campaign', description: 'Campaign: App Launch', amount: usd(-8000), date: '2026-08-18T11:05:00.000Z' },
+];
+
+let brandProfileState: BrandProfile = {
+  organizationName: 'Glow Beauty Co.',
+  website: 'https://glowbeauty.co',
+  industry: 'Beauty',
+  plan: 'Growth',
+  teamMembers: [
+    { id: 't1', name: 'Maya Chen', email: 'maya@glowbeauty.co', role: 'Owner' },
+    { id: 't2', name: 'Sam Okafor', email: 'sam@glowbeauty.co', role: 'Admin' },
+    { id: 't3', name: 'Priya Nair', email: 'priya@glowbeauty.co', role: 'Member' },
+  ],
 };
 
 let notificationPrefs: NotificationPreferences = {
@@ -279,6 +318,10 @@ function requireCampaign(campaignId: string): Campaign {
   return campaign;
 }
 
+function brandProfile(): BrandProfile {
+  return { ...brandProfileState, plan: brandBilling.plan };
+}
+
 function brandDashboard(): BrandDashboard {
   const live = campaigns.filter((campaign) => campaign.status === 'live');
   const pending = Object.values(submissionsByCampaign)
@@ -305,42 +348,74 @@ function brandDashboard(): BrandDashboard {
 // success and error states are reachable — any other code is rejected.
 const MOCK_VERIFICATION_CODE = '000000';
 
-function mockSession(role: Role, emailVerified: boolean): Session {
+function mockRoleFor(email: string): Role {
+  return email.toLowerCase().includes('creator') ? 'creator' : 'brand';
+}
+
+function mockSession(
+  role: Role,
+  email: string,
+  emailVerified: boolean,
+  hasCreatorProfile = true,
+): Session {
   return {
     userId: `mock-${role}`,
     role,
     displayName: role === 'brand' ? 'Glow Beauty Co.' : creatorProfile.displayName,
+    email,
     emailVerified,
+    hasOrganization: role !== 'brand',
+    hasCreatorProfile: role !== 'creator' || hasCreatorProfile,
   };
 }
 
 export function createMockApi(): ZeyooApi {
   // The account most recently created via signUp, awaiting email confirmation.
   let pendingVerification: Session | null = null;
+  // The last session this client established, so setup and other follow-up calls
+  // hand back the same account (and email) the user signed in with.
+  let active: Session | null = null;
 
   return {
-    signIn: ({ email }) => {
-      // Mock has no server to resolve the role from credentials, so derive it from
-      // the email for dev convenience: "creator@…" → creator, anything else → brand.
-      const role = email.toLowerCase().includes('creator') ? 'creator' : 'brand';
-      return delay(mockSession(role, true));
+    requestSignInCode: ({ email }) => {
+      // Mock has no server to resolve the role from an address, so derive it for
+      // dev convenience: "creator@…" → creator, anything else → brand.
+      const role = mockRoleFor(email);
+      pendingVerification = mockSession(role, email, false, role !== 'creator');
+      return delay(undefined);
     },
 
-    signUp: ({ role }) => {
-      pendingVerification = mockSession(role, false);
+    signInWithCode: ({ email, code }) => {
+      if (code !== MOCK_VERIFICATION_CODE) {
+        return Promise.reject(new Error('This code is invalid or has expired.'));
+      }
+      const role = pendingVerification?.role ?? mockRoleFor(email);
+      active = { ...mockSession(role, email, true, role !== 'creator'), hasOrganization: true };
+      pendingVerification = null;
+      return delay(active);
+    },
+
+    signUp: ({ role, email }) => {
+      pendingVerification = mockSession(role, email, false, role !== 'creator');
       return delay(pendingVerification);
     },
 
-    oauthSignIn: ({ role }) =>
+    oauthSignIn: ({ role }) => {
       // A provider-verified email means the account is active immediately.
-      delay(mockSession(role, true)),
+      active = mockSession(role, `${role}@oauth.zeyoo.com`, true);
+      return delay(active);
+    },
 
     verifyEmail: ({ code }) => {
       if (code !== MOCK_VERIFICATION_CODE) {
         return Promise.reject(new Error('This code is invalid or has expired.'));
       }
-      const session = { ...(pendingVerification ?? mockSession('creator', false)), emailVerified: true };
+      const session = {
+        ...(pendingVerification ?? mockSession('creator', 'creator@zeyoo.com', false)),
+        emailVerified: true,
+      };
       pendingVerification = null;
+      active = session;
       return delay(session);
     },
 
@@ -353,11 +428,41 @@ export function createMockApi(): ZeyooApi {
         ? delay(undefined)
         : Promise.reject(new Error('This code is invalid or has expired.')),
 
+    setupBrand: ({ name }) =>
+      delay({
+        ...(active ?? mockSession('brand', 'brand@zeyoo.com', true)),
+        displayName: name,
+        hasOrganization: true,
+      }),
+
+    setupCreator: ({ displayName, username, avatarUrl, platforms }) => {
+      const connected = (platform: string) =>
+        platforms.includes(platform as 'instagram' | 'tiktok' | 'snapchat');
+      creatorProfile = {
+        ...creatorProfile,
+        displayName,
+        handle: `@${username}`,
+        avatarUrl,
+        socialAccounts: creatorProfile.socialAccounts.map((account) => ({
+          ...account,
+          connected: connected(account.platform),
+          handle: connected(account.platform) ? `@${username}` : account.handle,
+        })),
+      };
+      return delay({
+        ...(active ?? mockSession('creator', 'creator@zeyoo.com', true, true)),
+        displayName,
+        hasCreatorProfile: true,
+      });
+    },
+
     getBrandDashboard: () => delay(brandDashboard()),
 
     getBrandCampaigns: () => delay([...campaigns]),
 
     getCampaign: (campaignId) => delay(requireCampaign(campaignId)),
+
+    getCampaignCategories: () => delay([...campaignCategories]),
 
     createCampaign: (input: CreateCampaignInput) => {
       const campaign: Campaign = {
@@ -443,20 +548,35 @@ export function createMockApi(): ZeyooApi {
     },
 
     getBrandProfile: () =>
-      delay<BrandProfile>({
-        organizationName: 'Glow Beauty Co.',
-        plan: brandBilling.plan,
-        teamMembers: [
-          { id: 't1', name: 'Maya Chen', email: 'maya@glowbeauty.co', role: 'Owner' },
-          { id: 't2', name: 'Sam Okafor', email: 'sam@glowbeauty.co', role: 'Admin' },
-          { id: 't3', name: 'Priya Nair', email: 'priya@glowbeauty.co', role: 'Member' },
-        ],
-      }),
+      delay<BrandProfile>(brandProfile()),
+
+    updateBrandProfile: (input: UpdateBrandProfileInput) => {
+      brandProfileState = {
+        ...brandProfileState,
+        organizationName: input.name,
+        website: input.website,
+        industry: input.industry,
+        logoUrl: input.logoUrl,
+      };
+      return delay<BrandProfile>(brandProfile());
+    },
 
     getBrandBilling: () => delay(brandBilling),
 
+    getBrandLedger: () => delay([...brandLedger]),
+
     setBillingPlan: (plan: BillingPlan) => {
       brandBilling = { ...brandBilling, plan };
+      return delay(brandBilling);
+    },
+
+    setBrandPaymentMethod: (input: AddPaymentMethodInput) => {
+      // Stands in for the Stripe check the server does; the client already runs
+      // this so the form can fail fast, but an API is never trusted for that.
+      if (!luhnValid(cardDigits(input.cardNumber))) {
+        throw new Error('That card number is not valid.');
+      }
+      brandBilling = { ...brandBilling, paymentMethodLast4: cardLast4(input.cardNumber) };
       return delay(brandBilling);
     },
 

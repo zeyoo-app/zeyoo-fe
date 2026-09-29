@@ -8,7 +8,7 @@ import type { Money } from '../money/money';
 
 export type Role = 'brand' | 'creator';
 
-export type SocialPlatform = 'instagram' | 'tiktok' | 'youtube';
+export type SocialPlatform = 'instagram' | 'tiktok' | 'snapchat' | 'youtube';
 
 export type CampaignStatus = 'draft' | 'live' | 'closed';
 
@@ -25,8 +25,26 @@ export interface Session {
   userId: string;
   role: Role;
   displayName: string;
+  email: string;
   /** False right after sign-up until the emailed 6-digit code is confirmed. */
   emailVerified: boolean;
+  hasOrganization?: boolean;
+  /** False until a creator completes the first-run profile setup screen. */
+  hasCreatorProfile?: boolean;
+}
+
+export interface BrandSetupInput {
+  name: string;
+  website?: string;
+  industry?: string;
+  logoUrl?: string;
+}
+
+export interface CreatorSetupInput {
+  displayName: string;
+  username: string;
+  avatarUrl?: string;
+  platforms: SocialPlatform[];
 }
 
 export interface VerifyEmailInput {
@@ -64,8 +82,16 @@ export interface ReferenceMaterial {
 export interface CampaignRequirements {
   hashtags: string[];
   mentions: string[];
+  /** Free-form must-follow rules, e.g. "Show the product in the first 3 seconds". */
+  contentRules: string[];
   disclosureRequired: boolean;
   notes?: string;
+}
+
+export interface CampaignCategory {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 export interface Campaign {
@@ -170,6 +196,19 @@ export interface WalletSummary {
   payoutConnected: boolean;
 }
 
+/** Brand-side wallet movement: money in from a top-up, out to fund a campaign. */
+export type BrandLedgerKind = 'topup' | 'campaign';
+
+export interface BrandLedgerEntry {
+  id: string;
+  kind: BrandLedgerKind;
+  description: string;
+  /** Positive for a top-up, negative when a campaign is funded. */
+  amount: Money;
+  /** ISO date. */
+  date: string;
+}
+
 export interface LedgerEntry {
   id: string;
   kind: LedgerEntryKind;
@@ -193,6 +232,16 @@ export interface BrandBilling {
   paymentMethodLast4?: string;
 }
 
+/** Raw card details, sent once so the backend can tokenize them with Stripe. */
+export interface AddPaymentMethodInput {
+  cardholderName: string;
+  /** Digits only, no grouping. */
+  cardNumber: string;
+  /** MM/YY. */
+  expiry: string;
+  cvc: string;
+}
+
 // -------------------------------------------------------------------------------------
 // Profile, verification, socials
 // -------------------------------------------------------------------------------------
@@ -206,6 +255,8 @@ export interface SocialAccount {
 
 export interface CreatorProfile {
   handle: string;
+  /** Uploaded during setup or edited later; absent until the user adds one. */
+  avatarUrl?: string;
   displayName: string;
   bio: string;
   categories: string[];
@@ -229,8 +280,18 @@ export interface TeamMember {
 
 export interface BrandProfile {
   organizationName: string;
+  website?: string;
+  industry?: string;
+  logoUrl?: string;
   plan: string;
   teamMembers: TeamMember[];
+}
+
+export interface UpdateBrandProfileInput {
+  name: string;
+  website?: string;
+  industry?: string;
+  logoUrl?: string;
 }
 
 // -------------------------------------------------------------------------------------
