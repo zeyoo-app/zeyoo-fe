@@ -13,12 +13,14 @@ import type {
   BrandSetupInput,
   Campaign,
   CampaignCategory,
+  CampaignFunding,
   CreateCampaignInput,
   CreatorDirectoryEntry,
   CreatorProfile,
   CreatorSetupInput,
   CreatorSubmission,
   Dispute,
+  FundCampaignInput,
   InviteCreatorInput,
   LedgerEntry,
   NotificationPreferences,
@@ -72,6 +74,7 @@ export interface ZeyooApi {
   getCampaign(campaignId: string): Promise<Campaign>;
   getCampaignCategories(): Promise<CampaignCategory[]>;
   createCampaign(input: CreateCampaignInput): Promise<Campaign>;
+  fundCampaign(input: FundCampaignInput): Promise<CampaignFunding>;
   setCampaignStatus(input: { campaignId: string; status: Campaign['status'] }): Promise<Campaign>;
   getDiscoverCampaigns(): Promise<Campaign[]>;
 

@@ -94,11 +94,24 @@ export interface CampaignCategory {
   slug: string;
 }
 
+export type CampaignContentType = 'ugc' | 'clipping';
+
+export interface CampaignFunding {
+  fundingId: string;
+  status: 'pending' | 'succeeded' | 'failed';
+  amount: Money;
+  clientSecret?: string;
+}
+
 export interface Campaign {
   id: string;
   title: string;
   brandName: string;
   platform: SocialPlatform;
+  contentType?: CampaignContentType;
+  category?: CampaignCategory;
+  endDate?: string;
+  coverImageUrl?: string;
   ratePerThousandViews: Money;
   /** Total reward budget the brand committed. */
   budget: Money;
@@ -116,11 +129,21 @@ export interface Campaign {
 export interface CreateCampaignInput {
   title: string;
   platform: SocialPlatform;
+  contentType: CampaignContentType;
+  categoryId?: string;
+  endDate: string;
+  coverImageUrl?: string;
   brief: string;
   ratePerThousandViews: Money;
   budget: Money;
   perCreatorCap: Money;
   requirements: CampaignRequirements;
+  referenceMaterials?: ReferenceMaterial[];
+}
+
+export interface FundCampaignInput {
+  campaignId: string;
+  amount: Money;
 }
 
 // -------------------------------------------------------------------------------------

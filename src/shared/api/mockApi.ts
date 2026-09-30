@@ -470,13 +470,22 @@ export function createMockApi(): ZeyooApi {
         brandName: 'Glow Beauty Co.',
         budgetSpent: usd(0),
         submissionCount: 0,
-        status: 'live',
-        referenceMaterials: [],
+        status: 'draft',
+        referenceMaterials: input.referenceMaterials ?? [],
         ...input,
       };
       campaigns.unshift(campaign);
       submissionsByCampaign[campaign.id] = [];
       return delay(campaign);
+    },
+
+    fundCampaign: ({ campaignId, amount }) => {
+      requireCampaign(campaignId);
+      return delay({
+        fundingId: `funding-${Date.now()}`,
+        status: 'succeeded' as const,
+        amount,
+      });
     },
 
     setCampaignStatus: ({ campaignId, status }) => {

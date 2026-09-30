@@ -46,6 +46,11 @@ export function useCreateCampaign() {
   });
 }
 
+export function useFundCampaign() {
+  const api = useApi();
+  return useMutation({ mutationFn: api.fundCampaign });
+}
+
 export function useSetCampaignStatus(campaignId: string) {
   const api = useApi();
   const queryClient = useQueryClient();
