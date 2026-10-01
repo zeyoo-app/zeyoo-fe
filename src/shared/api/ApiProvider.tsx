@@ -3,7 +3,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-import { createMockApi } from './mockApi';
+import { createBackendApi } from './backendApi';
 import type { ZeyooApi } from './ZeyooApi';
 
 const ApiContext = createContext<ZeyooApi | null>(null);
@@ -17,12 +17,10 @@ function createQueryClient(): QueryClient {
 }
 
 /**
- * Provides the backend client + TanStack Query to the tree. Today it wires the
- * in-memory mock; going live means swapping `createMockApi()` for the generated
- * SDK client — nothing else in the app changes (IMPLEMENTATION_PLAN §6).
+ * Provides the real backend client and TanStack Query to the application.
  */
 export function ApiProvider({ children, client }: { children: ReactNode; client?: ZeyooApi }) {
-  const api = useMemo(() => client ?? createMockApi(), [client]);
+  const api = useMemo(() => client ?? createConfiguredApi(), [client]);
   const [queryClient] = useState(createQueryClient);
 
   return (
@@ -30,6 +28,12 @@ export function ApiProvider({ children, client }: { children: ReactNode; client?
       <ApiContext.Provider value={api}>{children}</ApiContext.Provider>
     </QueryClientProvider>
   );
+}
+
+function createConfiguredApi(): ZeyooApi {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  if (!baseUrl) throw new Error('NEXT_PUBLIC_API_BASE_URL is required.');
+  return createBackendApi(baseUrl);
 }
 
 export function useApi(): ZeyooApi {

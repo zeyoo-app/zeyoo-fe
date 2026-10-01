@@ -1,8 +1,7 @@
 /**
  * Domain contract shared by every feature. These shapes stand in for the types the
  * generated OpenAPI SDK will export (IMPLEMENTATION_PLAN §3) — features depend on
- * this seam, never on a concrete transport. Swapping the mock for the real client
- * means satisfying `ZeyooApi` (./ZeyooApi.ts); nothing else changes.
+ * this seam, never on a concrete transport.
  */
 import type { Money } from '../money/money';
 

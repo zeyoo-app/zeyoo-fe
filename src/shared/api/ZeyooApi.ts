@@ -41,9 +41,9 @@ import type {
 } from './types';
 
 /**
- * The single backend interface every feature talks to. The mock in ./mockApi.ts
- * implements it today; the generated OpenAPI client implements it later. Features
- * receive it through `useApi()` and never construct their own transport.
+ * The single backend interface every feature talks to. The HTTP adapter implements
+ * this contract, while features receive it through `useApi()` and never construct
+ * their own transport.
  */
 export interface ZeyooApi {
   /** Request a one-time sign-in code (backend: POST /auth/login/code). */

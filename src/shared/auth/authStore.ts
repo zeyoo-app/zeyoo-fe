@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 
 import type { Session } from '../api/types';
+import { clearBackendSession } from '../api/backendApi';
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -18,9 +19,8 @@ const STORAGE_KEY = 'zeyoo.session';
 
 /**
  * Session state for the whole web app. Mirrors the mobile auth store: the session
- * marker drives route guards; the in-memory access token (real backend) is never
- * persisted in plaintext. On web the marker lives in localStorage for the mock;
- * the real build swaps this for the httpOnly-cookie BFF flow (IMPLEMENTATION_PLAN §7).
+ * marker drives route guards; access tokens stay in memory and the rotating
+ * refresh token is held by the BFF in an httpOnly cookie.
  */
 function readStoredSession(): Session | null {
   try {
@@ -58,6 +58,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signOut: () => {
+    void clearBackendSession();
     writeStoredSession(null);
     set({ status: 'unauthenticated', session: null });
   },
