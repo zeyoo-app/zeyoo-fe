@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 import { AsyncContent, Button, Card, ChoiceChips, Divider, type Choice } from '@/design-system';
 import type { BillingPlan } from '@/shared/api';
@@ -20,7 +19,6 @@ const PLANS: Choice<BillingPlan>[] = [
 
 /** Brand subscription: current tier, monthly spend, and plan changes. */
 export function SubscriptionScreen() {
-  const router = useRouter();
   const billing = useBrandBilling();
   const setPlan = useSetBillingPlan();
   const [selected, setSelected] = useState<BillingPlan | null>(null);
@@ -81,9 +79,8 @@ export function SubscriptionScreen() {
               loading={setPlan.isPending}
               disabled={!changed}
               onClick={async () => {
+                // Opens Stripe Checkout; the plan updates once payment completes.
                 await setPlan.mutateAsync(plan);
-                setSelected(null);
-                router.back();
               }}
             >
               Update plan

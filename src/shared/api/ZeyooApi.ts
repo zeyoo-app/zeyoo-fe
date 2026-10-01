@@ -1,5 +1,5 @@
 import type {
-  AddPaymentMethodInput,
+  RedirectUrl,
   AiBriefRequest,
   AiBriefResult,
   AiIdeasRequest,
@@ -91,15 +91,15 @@ export interface ZeyooApi {
   // Wallet & payments
   getWallet(): Promise<WalletSummary>;
   getLedger(): Promise<LedgerEntry[]>;
-  connectPayout(): Promise<WalletSummary>;
+  connectPayout(): Promise<RedirectUrl>;
   requestWithdrawal(input: WithdrawInput): Promise<WalletSummary>;
 
   // Brand billing
   getBrandBilling(): Promise<BrandBilling>;
   /** Money movements on the brand wallet: top-ups in, campaign funding out. */
   getBrandLedger(): Promise<BrandLedgerEntry[]>;
-  setBillingPlan(plan: BillingPlan): Promise<BrandBilling>;
-  setBrandPaymentMethod(input: AddPaymentMethodInput): Promise<BrandBilling>;
+  setBillingPlan(plan: BillingPlan): Promise<RedirectUrl>;
+  setBrandPaymentMethod(): Promise<RedirectUrl>;
 
   // Profile, verification, socials
   getBrandProfile(): Promise<BrandProfile>;

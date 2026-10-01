@@ -3,7 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys, useApi } from '@/shared/api';
-import type { AddPaymentMethodInput, BillingPlan, WithdrawInput } from '@/shared/api';
+import type { BillingPlan, RedirectUrl, WithdrawInput } from '@/shared/api';
+
+/** Hands the browser to a hosted Stripe page (payout setup, checkout, card entry). */
+function openHostedPage({ url }: RedirectUrl) {
+  window.location.assign(url);
+}
 
 export function useWallet() {
   const api = useApi();
@@ -17,10 +22,9 @@ export function useLedger() {
 
 export function useConnectPayout() {
   const api = useApi();
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => api.connectPayout(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.wallet }),
+    onSuccess: openHostedPage,
   });
 }
 
@@ -48,18 +52,16 @@ export function useBrandLedger() {
 
 export function useSetBillingPlan() {
   const api = useApi();
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (plan: BillingPlan) => api.setBillingPlan(plan),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.brandBilling }),
+    onSuccess: openHostedPage,
   });
 }
 
 export function useAddPaymentMethod() {
   const api = useApi();
-  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: AddPaymentMethodInput) => api.setBrandPaymentMethod(input),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.brandBilling }),
+    mutationFn: () => api.setBrandPaymentMethod(),
+    onSuccess: openHostedPage,
   });
 }

@@ -254,14 +254,9 @@ export interface BrandBilling {
   paymentMethodLast4?: string;
 }
 
-/** Raw card details, sent once so the backend can tokenize them with Stripe. */
-export interface AddPaymentMethodInput {
-  cardholderName: string;
-  /** Digits only, no grouping. */
-  cardNumber: string;
-  /** MM/YY. */
-  expiry: string;
-  cvc: string;
+/** A hosted (Stripe) page the client must open to finish a flow: payout setup, card entry, checkout. */
+export interface RedirectUrl {
+  url: string;
 }
 
 // -------------------------------------------------------------------------------------
