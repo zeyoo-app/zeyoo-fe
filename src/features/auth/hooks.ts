@@ -14,7 +14,7 @@ import { acquireIdToken } from './socialAuth';
  * session. The two halves are separate so the screen can show the code entry
  * between them. Errors surface to the caller rather than being swallowed.
  */
-export function useSignIn() {
+export function useSignIn({ navigate = true }: { navigate?: boolean } = {}) {
   const api = useApi();
   const router = useRouter();
   const persistSession = useAuthStore((state) => state.signIn);
@@ -44,7 +44,7 @@ export function useSignIn() {
     try {
       const session = await api.signInWithCode({ email, code });
       persistSession(session);
-      router.replace(routeForSession(session));
+      if (navigate) router.replace(routeForSession(session));
       return session;
     } catch {
       setError('That code is invalid or has expired. Check it and try again.');
@@ -54,7 +54,48 @@ export function useSignIn() {
     }
   }
 
-  return { requestCode, resend, signInWithCode, isPending, error };
+  async function requestPhoneCode(phone: string) {
+    setIsPending(true);
+    setError(null);
+    try {
+      await api.requestPhoneCode({ phone });
+      return true;
+    } catch {
+      setError('Could not send a code to that number. Please try again.');
+      return false;
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  const resendPhoneCode = (phone: string) => requestPhoneCode(phone);
+
+  async function signInWithPhoneCode(phone: string, code: string, role: Role) {
+    setIsPending(true);
+    setError(null);
+    try {
+      const session = await api.verifyPhoneCode({ phone, code, role });
+      persistSession(session);
+      if (navigate) router.replace(routeForSession(session));
+      return session;
+    } catch {
+      setError('That code is invalid or has expired. Check it and try again.');
+      return null;
+    } finally {
+      setIsPending(false);
+    }
+  }
+
+  return {
+    requestCode,
+    resend,
+    signInWithCode,
+    requestPhoneCode,
+    resendPhoneCode,
+    signInWithPhoneCode,
+    isPending,
+    error,
+  };
 }
 
 /**

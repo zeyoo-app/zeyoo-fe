@@ -52,6 +52,10 @@ export interface ZeyooApi {
   signInWithCode(input: { email: string; code: string }): Promise<Session>;
   /** Create an account and start an authenticated session (backend: POST /auth/register). */
   signUp(input: { email: string; role: Role }): Promise<Session>;
+  /** Send a one-time code by text (backend: POST /auth/phone/code). */
+  requestPhoneCode(input: { phone: string }): Promise<void>;
+  /** Verify a texted code, creating a new account when needed. */
+  verifyPhoneCode(input: { phone: string; code: string; role: Role }): Promise<Session>;
   /** Sign in (or sign up) with a Google/Apple ID token (backend: POST /auth/oauth/:provider). */
   oauthSignIn(input: OAuthSignInInput): Promise<Session>;
   /** Confirm the signed-in account's email with the 6-digit code (backend: POST /auth/email/verify). */

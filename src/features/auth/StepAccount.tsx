@@ -2,22 +2,40 @@
 
 import { Button, Field, SegmentedToggle } from '@/design-system';
 import type { Role } from '@/shared/api';
+import { isCompletePhone } from '@/shared/format/phone';
 
-const ROLE_OPTIONS: { value: Role; label: string }[] = [
-  { value: 'brand', label: 'Company' },
-  { value: 'creator', label: 'Creator' },
-];
+import { AuthChannelSwitch } from './AuthChannelSwitch';
+import type { AuthChannel } from './channel';
+import { PhoneInput } from './PhoneInput';
+import { ROLE_OPTIONS } from './roleOptions';
 
 interface StepAccountProps {
   role: Role;
   onRoleChange: (role: Role) => void;
+  channel: AuthChannel;
+  onChannelChange: (channel: AuthChannel) => void;
   email: string;
   onEmailChange: (email: string) => void;
+  phone: string;
+  onPhoneChange: (phone: string) => void;
   onContinue: () => void;
 }
 
 /** Step 1 — the account type and the address the code will be sent to. */
-export function StepAccount({ role, onRoleChange, email, onEmailChange, onContinue }: StepAccountProps) {
+export function StepAccount({
+  role,
+  onRoleChange,
+  channel,
+  onChannelChange,
+  email,
+  onEmailChange,
+  phone,
+  onPhoneChange,
+  onContinue,
+}: StepAccountProps) {
+  const isPhone = channel === 'phone';
+  const canContinue = isPhone ? isCompletePhone(phone) : email.includes('@');
+
   return (
     <>
       <SegmentedToggle
@@ -27,7 +45,9 @@ export function StepAccount({ role, onRoleChange, email, onEmailChange, onContin
         ariaLabel="Are you creating a Company or a Creator account?"
       />
 
-      <div className="flex flex-col gap-1.5">
+      {isPhone ? (
+        <PhoneInput value={phone} onChange={onPhoneChange} />
+      ) : (
         <Field
           label="Work email"
           type="email"
@@ -36,11 +56,12 @@ export function StepAccount({ role, onRoleChange, email, onEmailChange, onContin
           value={email}
           onChange={(event) => onEmailChange(event.target.value)}
         />
-      </div>
+      )}
 
-      <Button disabled={!email.includes('@')} onClick={onContinue}>
+      <Button disabled={!canContinue} onClick={onContinue}>
         Continue
       </Button>
+      <AuthChannelSwitch value={channel} onChange={onChannelChange} />
     </>
   );
 }

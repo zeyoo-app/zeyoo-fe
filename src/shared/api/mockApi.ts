@@ -400,6 +400,20 @@ export function createMockApi(): ZeyooApi {
       return delay(pendingVerification);
     },
 
+    requestPhoneCode: () => delay(undefined),
+
+    verifyPhoneCode: ({ phone, code, role }) => {
+      if (code !== MOCK_VERIFICATION_CODE) {
+        return Promise.reject(new Error('This code is invalid or has expired.'));
+      }
+      active = {
+        ...mockSession(role, `phone-${phone.replace(/\D/g, '')}@zeyoo.local`, true, role !== 'creator'),
+        hasOrganization: role === 'brand',
+      };
+      pendingVerification = null;
+      return delay(active);
+    },
+
     oauthSignIn: ({ role }) => {
       // A provider-verified email means the account is active immediately.
       active = mockSession(role, `${role}@oauth.zeyoo.com`, true);

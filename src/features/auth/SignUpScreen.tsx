@@ -4,15 +4,17 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-import type { Role } from '@/shared/api';
+import type { Role, Session } from '@/shared/api';
 import { routeForSession } from '@/shared/auth';
+import { normalizePhone } from '@/shared/format/phone';
 
 import { AuthTopShell } from './AuthShell';
 import { StepAccount } from './StepAccount';
 import { StepCode } from './StepCode';
 import { StepDetails } from './StepDetails';
 import { StepHeader } from './StepHeader';
-import { useSignUp, useVerifyEmail } from './hooks';
+import type { AuthChannel } from './channel';
+import { useSignIn, useSignUp, useVerifyEmail } from './hooks';
 
 const TOTAL_STEPS = 3;
 
@@ -35,18 +37,45 @@ const DETAILS_COPY: Record<Role, { title: string; subtitle: string }> = {
 export function SignUpScreen() {
   const router = useRouter();
   const { signUp, isPending, error } = useSignUp();
-  const { verify, resend, isPending: isVerifying, isResending, error: verifyError, resent } =
+  const {
+    requestPhoneCode,
+    signInWithPhoneCode,
+    isPending: isVerifyingPhone,
+    error: phoneError,
+  } = useSignIn({ navigate: false });
+  const { verify, resend, isPending: isVerifyingEmail, isResending, error: emailVerifyError, resent } =
     useVerifyEmail();
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role>('brand');
+  const [channel, setChannel] = useState<AuthChannel>('email');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [awaitingCode, setAwaitingCode] = useState(false);
 
+  const isPhone = channel === 'phone';
+
+  function switchChannel(next: AuthChannel) {
+    setChannel(next);
+    setAwaitingCode(false);
+  }
+
   async function submitDetails() {
+    if (isPhone) {
+      const sent = await requestPhoneCode(normalizePhone(phone));
+      if (sent) setAwaitingCode(true);
+      return;
+    }
     const session = await signUp(email.trim(), role);
     if (session) setAwaitingCode(true);
   }
+
+  function enterApp(session: Session) {
+    const path = routeForSession(session);
+    router.replace(path.endsWith('/setup') ? `${path}?name=${encodeURIComponent(fullName.trim())}` : path);
+  }
+
+  const codeError = isPhone ? phoneError : emailVerifyError;
 
   return (
     <AuthTopShell>
@@ -57,12 +86,18 @@ export function SignUpScreen() {
         step={step}
         total={TOTAL_STEPS}
         onBack={step === 2 ? () => setStep(1) : undefined}
-        title={step === 1 ? undefined : awaitingCode ? 'Verify your email' : DETAILS_COPY[role].title}
+        title={
+          step === 1
+            ? undefined
+            : awaitingCode
+              ? `Verify your ${isPhone ? 'phone number' : 'email'}`
+              : DETAILS_COPY[role].title
+        }
         subtitle={
           step === 1
             ? 'Get paid to create. Get campaigns done.'
             : awaitingCode
-              ? `We sent a 6-digit code to ${email.trim()}. Enter it below.`
+              ? `We sent a 6-digit code to ${isPhone ? normalizePhone(phone) : email.trim()}. Enter it below.`
               : DETAILS_COPY[role].subtitle
         }
       />
@@ -71,65 +106,61 @@ export function SignUpScreen() {
         <StepAccount
           role={role}
           onRoleChange={setRole}
+          channel={channel}
+          onChannelChange={switchChannel}
           email={email}
           onEmailChange={setEmail}
+          phone={phone}
+          onPhoneChange={setPhone}
           onContinue={() => setStep(2)}
         />
       ) : awaitingCode ? (
         <StepCode
-          onVerify={async (code) => {
-            const session = await verify(code);
-            if (!session) return;
-            const path = routeForSession(session);
-            // Step 3 is the profile setup screen, which opens with the name just given.
-            router.replace(path.endsWith('/setup') ? `${path}?name=${encodeURIComponent(fullName.trim())}` : path);
-          }}
-          isPending={isVerifying}
-          error={verifyError}
-          onResend={resend}
+          channel={channel}
+          onVerify={
+            isPhone
+              ? async (code) => {
+                  const session = await signInWithPhoneCode(normalizePhone(phone), code, role);
+                  if (session) enterApp(session);
+                }
+              : async (code) => {
+                  const session = await verify(code);
+                  if (session) enterApp(session);
+                }
+          }
+          isPending={isPhone ? isVerifyingPhone : isVerifyingEmail}
+          error={codeError}
+          onResend={isPhone ? () => void requestPhoneCode(normalizePhone(phone)) : resend}
           isResending={isResending}
           resent={resent}
-          onUseDifferentEmail={() => setAwaitingCode(false)}
+          onUseDifferentIdentifier={() => setAwaitingCode(false)}
         />
       ) : (
         <StepDetails
           role={role}
           fullName={fullName}
           onFullNameChange={setFullName}
+          channel={channel}
           email={email}
           onEmailChange={setEmail}
+          phone={phone}
+          onPhoneChange={setPhone}
           onContinue={submitDetails}
-          isPending={isPending}
-          error={error ?? undefined}
+          isPending={isPending || (isPhone && isVerifyingPhone)}
+          error={(isPhone ? phoneError : error) ?? undefined}
         />
       )}
 
-      {step === 2 ? (
-        <p className="text-center text-xs text-text-tertiary">
-          By continuing, you agree to Zeyoo&apos;s{' '}
-          <Link href="/settings/legal" className="text-text-muted">
-            Terms of Service
-          </Link>{' '}
-          and{' '}
-          <Link href="/settings/legal" className="text-text-muted">
-            Privacy Policy
-          </Link>
-          .
-        </p>
+      {step === 1 ? (
+        <Link
+          href="/sign-in"
+          aria-label="New here? Creating an account takes 30 seconds. Sign in."
+          className="self-center p-2 text-center text-xs text-text-muted"
+        >
+          New here? Creating an account takes 30 seconds…{' '}
+          <span className="font-medium text-green-text">Sign in</span>
+        </Link>
       ) : null}
-
-      <Link
-        href="/sign-in"
-        aria-label={
-          step === 1
-            ? 'New here? Creating an account takes 30 seconds. Sign in.'
-            : 'Already have an account? Sign in.'
-        }
-        className="self-center p-2 text-center text-xs text-text-muted"
-      >
-        {step === 1 ? 'New here? Creating an account takes 30 seconds… ' : 'Already have an account? '}
-        <span className="font-medium text-green-text">Sign in</span>
-      </Link>
     </AuthTopShell>
   );
 }

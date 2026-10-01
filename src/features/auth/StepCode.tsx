@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Button } from '@/design-system';
 
 import { CodeInput } from './CodeInput';
+import type { AuthChannel } from './channel';
 
 interface StepCodeProps {
   /** Performs the exchange behind the code — confirming an address or signing in. */
@@ -14,7 +15,8 @@ interface StepCodeProps {
   onResend?: () => void;
   isResending?: boolean;
   resent?: boolean;
-  onUseDifferentEmail: () => void;
+  channel?: AuthChannel;
+  onUseDifferentIdentifier: () => void;
 }
 
 /**
@@ -29,9 +31,11 @@ export function StepCode({
   onResend,
   isResending = false,
   resent = false,
-  onUseDifferentEmail,
+  channel = 'email',
+  onUseDifferentIdentifier,
 }: StepCodeProps) {
   const [code, setCode] = useState('');
+  const identifierLabel = channel === 'email' ? 'email address' : 'phone number';
 
   return (
     <>
@@ -44,27 +48,28 @@ export function StepCode({
         Verify
       </Button>
 
-      {onResend ? (
+      <div className="flex flex-col items-center">
+        {onResend ? (
+          <button
+            type="button"
+            aria-label="Resend the verification code"
+            disabled={isResending}
+            onClick={onResend}
+            className="px-2 py-3 text-[13px] font-semibold text-text underline underline-offset-2 disabled:opacity-60"
+          >
+            {isResending ? 'Sending…' : 'Resend code'}
+          </button>
+        ) : null}
+
         <button
           type="button"
-          aria-label="Resend the verification code"
-          disabled={isResending}
-          onClick={onResend}
-          className="self-center p-2 text-xs text-text-muted disabled:opacity-60"
+          aria-label={`Change ${identifierLabel}`}
+          onClick={onUseDifferentIdentifier}
+          className="px-2 py-3 text-[13px] font-semibold text-text underline underline-offset-2"
         >
-          Didn&apos;t get it?{' '}
-          <span className="font-medium text-green-text">{isResending ? 'Sending…' : 'Resend code'}</span>
+          Change {identifierLabel}
         </button>
-      ) : null}
-
-      <button
-        type="button"
-        aria-label="Use a different email"
-        onClick={onUseDifferentEmail}
-        className="self-center p-2 text-xs text-text-tertiary"
-      >
-        Use a different email
-      </button>
+      </div>
     </>
   );
 }

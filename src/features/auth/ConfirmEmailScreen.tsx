@@ -59,13 +59,15 @@ export function ConfirmEmailScreen() {
         <button
           onClick={resend}
           disabled={isResending}
-          className="text-xs text-text-muted disabled:opacity-60"
+          className="px-2 py-3 text-[13px] font-semibold text-text underline underline-offset-2 disabled:opacity-60"
         >
-          Didn&apos;t get it?{' '}
-          <span className="font-medium text-green-text">{isResending ? 'Sending…' : 'Resend code'}</span>
+          {isResending ? 'Sending…' : 'Resend code'}
         </button>
-        <button onClick={useDifferentAccount} className="text-xs text-text-tertiary">
-          Use a different account
+        <button
+          onClick={useDifferentAccount}
+          className="px-2 py-3 text-[13px] font-semibold text-text underline underline-offset-2"
+        >
+          Change email address
         </button>
       </div>
     </AuthShell>
