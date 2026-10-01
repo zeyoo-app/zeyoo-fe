@@ -41,7 +41,7 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
     return refreshRequest;
   }
 
-  async function request<T>(method: string, path: string, body?: unknown, authenticate = true): Promise<T> {
+  async function request<T>(method: string, path: string, body?: unknown, authenticate = true, allowRetry = true): Promise<T> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (authenticate) {
       const current = await token();
@@ -53,10 +53,10 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: 'no-store',
     });
-    if (response.status === 401 && authenticate && accessToken) {
+    if (response.status === 401 && authenticate && accessToken && allowRetry) {
       accessToken = null;
       const renewed = await refreshAccessToken();
-      if (renewed) return request<T>(method, path, body, true);
+      if (renewed) return request<T>(method, path, body, true, false);
     }
     if (!response.ok) throw new Error(await apiErrorMessage(response));
     if (response.status === 204) return undefined as T;
