@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowRight, BarChart3, ShieldCheck, Sparkles, Wallet } from 'lucide-react';
 
 import { Logo } from '@/design-system';
+import { LandingThemeSwitch } from '@/features/landing/LandingThemeSwitch';
 
 const CREATOR_STEPS = [
   'Discover campaigns that fit your audience',
@@ -27,6 +28,7 @@ function Nav() {
     <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
       <Logo height={26} />
       <div className="flex items-center gap-2">
+        <LandingThemeSwitch />
         <Link
           href="/sign-in"
           className="rounded-xl px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"

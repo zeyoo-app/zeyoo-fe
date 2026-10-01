@@ -27,8 +27,8 @@ export interface HelpDocument {
 
 const SUPPORT_CONTACT = {
   title: 'Still need help?',
-  body: "Email support@zeyoo.com and we'll get back to you within 24 hours.",
-  email: 'support@zeyoo.com',
+  body: "Email support@zeyoo.app and we'll get back to you within 24 hours.",
+  email: 'support@zeyoo.app',
 };
 
 export const BRAND_HELP_DOCUMENT: HelpDocument = {

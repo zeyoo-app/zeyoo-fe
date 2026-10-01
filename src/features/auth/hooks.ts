@@ -7,7 +7,7 @@ import { useApi } from '@/shared/api';
 import type { OAuthProvider, Role, Session } from '@/shared/api';
 import { routeForSession, useAuthStore } from '@/shared/auth';
 
-import { acquireIdToken } from './socialAuth';
+import { acquireIdToken, startGoogleSignIn } from './socialAuth';
 
 /**
  * Drives the passwordless sign-in flow: ask for a code, then exchange it for a
@@ -138,6 +138,11 @@ export function useOAuthSignIn() {
     setPendingProvider(provider);
     setError(null);
     try {
+      if (provider === 'google') {
+        // Full-page redirect; the session is completed on /google-callback.
+        startGoogleSignIn(role);
+        return;
+      }
       const idToken = await acquireIdToken(provider);
       const session = await api.oauthSignIn({ provider, idToken, role });
       persistSession(session);
