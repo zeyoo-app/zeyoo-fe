@@ -24,8 +24,8 @@ interface StepDetailsProps {
 }
 
 /**
- * Step 2 — the account details. Continuing registers the passwordless account,
- * which is when the verification code goes out.
+ * Step 2 — the account details. Continuing sends the verification code; the account
+ * itself is created only once that code is verified.
  */
 export function StepDetails({
   role,

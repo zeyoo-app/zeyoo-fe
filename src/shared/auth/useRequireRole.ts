@@ -27,10 +27,6 @@ export function useRequireRole(role: Role, options?: { skipOnboarding?: boolean 
       router.replace('/sign-in');
       return;
     }
-    if (!session.emailVerified) {
-      router.replace('/confirm-email');
-      return;
-    }
     if (session.role !== role) {
       router.replace(routeForSession(session));
       return;
@@ -44,7 +40,6 @@ export function useRequireRole(role: Role, options?: { skipOnboarding?: boolean 
   const ready =
     status === 'authenticated' &&
     session?.role === role &&
-    session.emailVerified &&
     (skipOnboarding || hasFinishedOnboarding(session));
 
   return { ready };

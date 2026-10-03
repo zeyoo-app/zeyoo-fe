@@ -14,7 +14,7 @@ import { StepCode } from './StepCode';
 import { StepDetails } from './StepDetails';
 import { StepHeader } from './StepHeader';
 import type { AuthChannel } from './channel';
-import { useSignIn, useSignUp, useVerifyEmail } from './hooks';
+import { useSignIn } from './hooks';
 
 const TOTAL_STEPS = 3;
 
@@ -31,20 +31,20 @@ const DETAILS_COPY: Record<Role, { title: string; subtitle: string }> = {
 
 /**
  * Sign-up as a three-step widget: pick the account type, then the details. The
- * verification code is not a step of its own — it renders inside step 2 once the
- * account exists, and the confirmed session continues to profile setup.
+ * verification code is not a step of its own — it renders inside step 2. The account
+ * is created only when the code is verified, and the new session continues to profile setup.
  */
 export function SignUpScreen() {
   const router = useRouter();
-  const { signUp, isPending, error } = useSignUp();
   const {
+    requestCode,
     requestPhoneCode,
+    signInWithCode,
     signInWithPhoneCode,
-    isPending: isVerifyingPhone,
-    error: phoneError,
+    isPending,
+    error,
+    notice,
   } = useSignIn({ navigate: false });
-  const { verify, resend, isPending: isVerifyingEmail, isResending, error: emailVerifyError, resent } =
-    useVerifyEmail();
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role>('brand');
   const [channel, setChannel] = useState<AuthChannel>('email');
@@ -61,21 +61,16 @@ export function SignUpScreen() {
   }
 
   async function submitDetails() {
-    if (isPhone) {
-      const sent = await requestPhoneCode(normalizePhone(phone));
-      if (sent) setAwaitingCode(true);
-      return;
-    }
-    const session = await signUp(email.trim(), role);
-    if (session) setAwaitingCode(true);
+    const sent = isPhone
+      ? await requestPhoneCode(normalizePhone(phone))
+      : await requestCode(email.trim());
+    if (sent) setAwaitingCode(true);
   }
 
   function enterApp(session: Session) {
     const path = routeForSession(session);
     router.replace(path.endsWith('/setup') ? `${path}?name=${encodeURIComponent(fullName.trim())}` : path);
   }
-
-  const codeError = isPhone ? phoneError : emailVerifyError;
 
   return (
     <AuthTopShell>
@@ -97,7 +92,7 @@ export function SignUpScreen() {
           step === 1
             ? 'Get paid to create. Get campaigns done.'
             : awaitingCode
-              ? `We sent a 6-digit code to ${isPhone ? normalizePhone(phone) : email.trim()}. Enter it below.`
+              ? `${notice ?? `We sent a 6-digit code to ${isPhone ? normalizePhone(phone) : email.trim()}.`} Enter it below.`
               : DETAILS_COPY[role].subtitle
         }
       />
@@ -117,22 +112,17 @@ export function SignUpScreen() {
       ) : awaitingCode ? (
         <StepCode
           channel={channel}
-          onVerify={
-            isPhone
-              ? async (code) => {
-                  const session = await signInWithPhoneCode(normalizePhone(phone), code, role);
-                  if (session) enterApp(session);
-                }
-              : async (code) => {
-                  const session = await verify(code);
-                  if (session) enterApp(session);
-                }
+          onVerify={async (code) => {
+            const session = isPhone
+              ? await signInWithPhoneCode(normalizePhone(phone), code, role)
+              : await signInWithCode(email.trim(), code, role);
+            if (session) enterApp(session);
+          }}
+          isPending={isPending}
+          error={error}
+          onResend={() =>
+            void (isPhone ? requestPhoneCode(normalizePhone(phone)) : requestCode(email.trim()))
           }
-          isPending={isPhone ? isVerifyingPhone : isVerifyingEmail}
-          error={codeError}
-          onResend={isPhone ? () => void requestPhoneCode(normalizePhone(phone)) : resend}
-          isResending={isResending}
-          resent={resent}
           onUseDifferentIdentifier={() => setAwaitingCode(false)}
         />
       ) : (
@@ -146,8 +136,8 @@ export function SignUpScreen() {
           phone={phone}
           onPhoneChange={setPhone}
           onContinue={submitDetails}
-          isPending={isPending || (isPhone && isVerifyingPhone)}
-          error={(isPhone ? phoneError : error) ?? undefined}
+          isPending={isPending}
+          error={error ?? undefined}
         />
       )}
 

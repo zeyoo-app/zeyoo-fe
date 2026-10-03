@@ -16,7 +16,11 @@ import { SocialAuthButtons } from './SocialAuthButtons';
 import { StepCode } from './StepCode';
 import { useSignIn } from './hooks';
 
-/** Passwordless sign-in through either an emailed or texted one-time code. */
+/**
+ * Passwordless sign-in and sign-up through an emailed or texted one-time code. An
+ * address or number with no account yet is created once its code is verified, which
+ * is why the account type is asked here too.
+ */
 export function SignInScreen() {
   const {
     requestCode,
@@ -27,6 +31,7 @@ export function SignInScreen() {
     resendPhoneCode,
     isPending,
     error,
+    notice,
   } = useSignIn();
   const [channel, setChannel] = useState<AuthChannel>('email');
   const [email, setEmail] = useState('');
@@ -57,7 +62,8 @@ export function SignInScreen() {
             Verify your {isPhone ? 'phone number' : 'email'}
           </h1>
           <p className="text-[15px] text-text-muted">
-            We sent a 6-digit code to {isPhone ? normalizePhone(phone) : email.trim()}. Enter it below.
+            {notice ?? `We sent a 6-digit code to ${isPhone ? normalizePhone(phone) : email.trim()}.`}{' '}
+            Enter it below.
           </p>
         </div>
       ) : (
@@ -70,7 +76,7 @@ export function SignInScreen() {
           onVerify={(code) =>
             isPhone
               ? signInWithPhoneCode(normalizePhone(phone), code, role)
-              : signInWithCode(email.trim(), code)
+              : signInWithCode(email.trim(), code, role)
           }
           isPending={isPending}
           error={error}
@@ -81,14 +87,12 @@ export function SignInScreen() {
         />
       ) : (
         <>
-          {isPhone ? (
-            <SegmentedToggle
-              options={ROLE_OPTIONS}
-              value={role}
-              onChange={setRole}
-              ariaLabel="Are you signing in as a Company or a Creator?"
-            />
-          ) : null}
+          <SegmentedToggle
+            options={ROLE_OPTIONS}
+            value={role}
+            onChange={setRole}
+            ariaLabel="Are you signing in as a Company or a Creator?"
+          />
 
           {isPhone ? (
             <PhoneInput value={phone} onChange={setPhone} error={error} />
@@ -114,7 +118,7 @@ export function SignInScreen() {
           <AuthChannelSwitch value={channel} onChange={switchChannel} />
 
           <OrDivider label="or" />
-          <SocialAuthButtons role="creator" />
+          <SocialAuthButtons role={role} />
         </>
       )}
 

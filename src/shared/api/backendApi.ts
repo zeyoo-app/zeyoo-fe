@@ -1,6 +1,7 @@
 import type { Money } from '../money/money';
 import type { ZeyooApi } from './ZeyooApi';
 import type {
+  CodeSent,
   Campaign,
   CampaignCategory,
   CampaignFunding,
@@ -95,16 +96,13 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
   }
 
   return {
-    async requestSignInCode({ email }) { await request('POST', '/auth/login/code', { email }, false); },
-    async signInWithCode({ email, code }) { return establishSession(await request<BackendTokens>('POST', '/auth/login/code/verify', { email, code }, false)); },
-    async signUp({ email, role }) {
-      return establishSession(await request<BackendTokens>('POST', '/auth/register', {
-        email,
-        password: `otp-${crypto.randomUUID()}`,
-        userType: role === 'brand' ? 'BRAND_USER' : 'CREATOR',
+    async requestEmailCode({ email }) { return request<CodeSent>('POST', '/auth/email/code', { email }, false); },
+    async verifyEmailCode({ email, code, role }) {
+      return establishSession(await request<BackendTokens>('POST', '/auth/email/code/verify', {
+        email, code, userType: role === 'brand' ? 'BRAND_USER' : 'CREATOR',
       }, false));
     },
-    async requestPhoneCode({ phone }) { await request('POST', '/auth/phone/code', { phone }, false); },
+    async requestPhoneCode({ phone }) { return request<CodeSent>('POST', '/auth/phone/code', { phone }, false); },
     async verifyPhoneCode({ phone, code, role }) {
       return establishSession(await request<BackendTokens>('POST', '/auth/phone/code/verify', {
         phone, code, userType: role === 'brand' ? 'BRAND_USER' : 'CREATOR',
@@ -115,10 +113,6 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
         idToken, userType: role === 'brand' ? 'BRAND_USER' : 'CREATOR',
       }, false));
     },
-    async verifyEmail({ code }) { await request('POST', '/auth/email/verify', { code }); return mapSession(await request<BackendAccount>('GET', '/me')); },
-    async resendVerificationCode() { await request('POST', '/auth/email/resend'); },
-    async requestPasswordReset({ email }) { await request('POST', '/auth/password/forgot', { email }, false); },
-    async resetPassword(input) { await request('POST', '/auth/password/reset', input, false); },
     async setupBrand(input) {
       const organization = await request<BackendOrganization>('POST', '/organizations', input);
       organizationId = organization.id;

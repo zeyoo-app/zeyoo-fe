@@ -46,18 +46,9 @@ export interface CreatorSetupInput {
   platforms: SocialPlatform[];
 }
 
-export interface VerifyEmailInput {
-  code: string;
-}
-
-export interface RequestPasswordResetInput {
-  email: string;
-}
-
-export interface ResetPasswordInput {
-  email: string;
-  code: string;
-  newPassword: string;
+/** What the backend says after sending a one-time code, e.g. "We sent a 6-digit code to a***@gmail.com." */
+export interface CodeSent {
+  message: string;
 }
 
 export interface OAuthSignInInput {
