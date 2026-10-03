@@ -42,6 +42,26 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
     return refreshRequest;
   }
 
+  /**
+   * Pickers hand back a local `data:` URL. Inlining that in a JSON body blows past
+   * the API's request-size limit, so it is uploaded as a real file first and the
+   * hosted URL is stored instead. Already-hosted URLs pass through untouched.
+   */
+  async function hostedImageUrl(url: string | undefined): Promise<string | undefined> {
+    if (!url?.startsWith('data:')) return url;
+    const blob = await (await fetch(url)).blob();
+    const form = new FormData();
+    form.append('file', blob, 'upload');
+    const current = await token();
+    const response = await fetch(`${root}/media/uploads/images`, {
+      method: 'POST',
+      headers: current ? { Authorization: `Bearer ${current}` } : {},
+      body: form,
+    });
+    if (!response.ok) throw new Error(await apiErrorMessage(response));
+    return ((await response.json()) as { url: string }).url;
+  }
+
   async function request<T>(method: string, path: string, body?: unknown, authenticate = true, allowRetry = true): Promise<T> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (authenticate) {
@@ -114,13 +134,13 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       }, false));
     },
     async setupBrand(input) {
-      const organization = await request<BackendOrganization>('POST', '/organizations', input);
+      const organization = await request<BackendOrganization>('POST', '/organizations', { ...input, logoUrl: await hostedImageUrl(input.logoUrl) });
       organizationId = organization.id;
       organizationName = organization.name;
       return mapSession(await request<BackendAccount>('GET', '/me'));
     },
     async setupCreator(input) {
-      await request('POST', '/creator-profile', { displayName: input.displayName, username: input.username, avatarUrl: input.avatarUrl });
+      await request('POST', '/creator-profile', { displayName: input.displayName, username: input.username, avatarUrl: await hostedImageUrl(input.avatarUrl) });
       await Promise.all(input.platforms.map((platform) => request('POST', '/creator-profile/social-accounts', { platform: platform.toUpperCase(), handle: `@${input.username}` })));
       return mapSession(await request<BackendAccount>('GET', '/me'));
     },
@@ -142,7 +162,7 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       const value = await request<BackendCampaign>('POST', `/organizations/${id}/campaigns`, {
         title: input.title, description: describeCampaign(input), guidelines: serializeGuidelines(input.requirements),
         platform: input.platform.toUpperCase(), contentType: input.contentType.toUpperCase(), categoryId: input.categoryId,
-        coverImageUrl: input.coverImageUrl, visibility: 'PRIVATE', startDate: new Date().toISOString(), endDate: input.endDate,
+        coverImageUrl: await hostedImageUrl(input.coverImageUrl), visibility: 'PRIVATE', startDate: new Date().toISOString(), endDate: input.endDate,
         currencyCode: input.budget.currency, budgetAmount: input.budget.minorUnits, rewardType: 'PER_VIEW', rewardAmount: input.ratePerThousandViews.minorUnits,
       });
       return mapCampaign(value, organizationName);
@@ -170,7 +190,7 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
     },
     async updateBrandProfile(input) {
       const id = await currentOrganizationId();
-      const organization = await request<BackendOrganization>('PATCH', `/organizations/${id}`, input);
+      const organization = await request<BackendOrganization>('PATCH', `/organizations/${id}`, { ...input, logoUrl: await hostedImageUrl(input.logoUrl) });
       organizationName = organization.name;
       return { organizationName: organization.name, website: organization.website ?? undefined, industry: organization.industry ?? undefined, logoUrl: organization.logoUrl ?? undefined, plan: 'Growth', teamMembers: [] };
     },

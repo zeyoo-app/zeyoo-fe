@@ -5,9 +5,9 @@ import { Upload } from 'lucide-react';
 
 /**
  * A local image the user just picked, held until the form is saved. Its `file` is
- * the picked file itself, so nothing about the image is guessed; the web build has
- * no upload endpoint yet, so the preview is a local object URL and the saved
- * `logoUrl` is a data URL the browser produced itself.
+ * the picked file itself, so nothing about the image is guessed. The preview is a
+ * local object URL and `url` is a data URL the browser produced itself; the API
+ * layer uploads it and stores the hosted URL, never the data URL.
  */
 export interface PickedImage {
   /** Object URL for the immediate preview. */
