@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Bell, CreditCard, FileText, LifeBuoy, Link2, Settings } from 'lucide-react';
+import { Bell, CreditCard, FileText, LifeBuoy, Link2, Settings, UserPen } from 'lucide-react';
 
 import {
   AsyncContent,
@@ -30,7 +30,7 @@ export function CreatorProfileScreen() {
     <>
       <PageHeader title="Profile" />
       <AsyncContent isLoading={query.isLoading} isError={query.isError} data={query.data}>
-        {(profile) => <ProfileBody displayName={profile.displayName} handle={profile.handle} connectedCount={profile.socialAccounts.filter((account) => account.connected).length} />}
+        {(profile) => <ProfileBody displayName={profile.displayName} handle={profile.handle} avatarUrl={profile.avatarUrl} connectedCount={profile.socialAccounts.filter((account) => account.connected).length} />}
       </AsyncContent>
     </>
   );
@@ -39,10 +39,12 @@ export function CreatorProfileScreen() {
 function ProfileBody({
   displayName,
   handle,
+  avatarUrl,
   connectedCount,
 }: {
   displayName: string;
   handle: string;
+  avatarUrl?: string;
   connectedCount: number;
 }) {
   const router = useRouter();
@@ -63,7 +65,7 @@ function ProfileBody({
   return (
     <div className="flex min-h-full flex-col">
       <div className="flex items-center gap-3.5">
-        <Avatar name={displayName} size={52} />
+        <Avatar name={displayName} src={avatarUrl} size={52} />
         <div className="min-w-0">
           <p className="font-display text-[15px] font-semibold text-text">{displayName}</p>
           <p className="truncate text-sm text-text-muted">{handle}</p>
@@ -72,6 +74,13 @@ function ProfileBody({
 
       <div className="mt-6">
         <Card className="flex flex-col px-5 py-0">
+          <ListRow
+            title="Edit profile"
+            subtitle="Name, username, and photo"
+            leading={<RowIcon icon={UserPen} />}
+            onPress={() => router.push('/creator/edit-profile')}
+          />
+          <Divider />
           <ListRow
             title="Payout Method"
             subtitle="Where your earnings are sent"

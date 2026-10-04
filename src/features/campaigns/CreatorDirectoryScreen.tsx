@@ -30,7 +30,7 @@ function CreatorRow({ creator }: { creator: CreatorDirectoryEntry }) {
 
   return (
     <Card className="flex items-center gap-3 p-4">
-      <Avatar name={creator.displayName} />
+      <Avatar name={creator.displayName} src={creator.avatarUrl} />
       <div className="min-w-0 flex-1">
         <p className="font-medium text-text">{creator.displayName}</p>
         <p className="truncate text-xs text-text-muted">

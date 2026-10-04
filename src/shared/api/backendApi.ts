@@ -195,10 +195,10 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       return { organizationName: organization.name, website: organization.website ?? undefined, industry: organization.industry ?? undefined, logoUrl: organization.logoUrl ?? undefined, plan: 'Growth', teamMembers: [] };
     },
     async getCreatorProfile() { return mapCreatorProfile(await request<BackendProfile>('GET', '/creator-profile')); },
-    async updateProfile(input) { return mapCreatorProfile(await request<BackendProfile>('PATCH', '/creator-profile', { displayName: input.displayName, bio: input.bio })); },
+    async updateProfile(input) { return mapCreatorProfile(await request<BackendProfile>('PATCH', '/creator-profile', { displayName: input.displayName, username: input.username, bio: input.bio, avatarUrl: await hostedImageUrl(input.avatarUrl) })); },
     async startVerification() { return mapCreatorProfile(await request<BackendProfile>('POST', '/creator-profile/verification')); },
     async connectSocial(platform) { await request('POST', '/creator-profile/social-accounts', { platform: platform.toUpperCase(), handle: platform }); return mapCreatorProfile(await request<BackendProfile>('GET', '/creator-profile')); },
-    async getCreatorDirectory() { return (await request<(BackendProfile & { userId: string })[]>('GET', '/creators')).map((creator) => ({ id: creator.userId, handle: creator.headline ?? creator.displayName, displayName: creator.displayName, platforms: [], categories: [], followers: 0, averageViews: 0 })); },
+    async getCreatorDirectory() { return (await request<(BackendProfile & { userId: string })[]>('GET', '/creators')).map((creator) => ({ id: creator.userId, handle: creator.headline ?? creator.displayName, displayName: creator.displayName, avatarUrl: creator.avatarUrl ?? undefined, platforms: [], categories: [], followers: 0, averageViews: 0 })); },
     async inviteCreator({ creatorId, campaignId }) { await request('POST', `/campaigns/${campaignId}/invitations`, { creatorUserId: creatorId }); },
     async getNotifications() { return (await request<{ id: string; type: string; title: string; body: string; createdAt: string; readAt?: string | null }[]>('GET', '/me/notifications')).map((item) => ({ id: item.id, type: notificationType(item.type), title: item.title, body: item.body, date: item.createdAt, read: Boolean(item.readAt) })); },
     async markNotificationsRead() { await request('POST', '/me/notifications/read-all'); return this.getNotifications(); },
@@ -253,7 +253,7 @@ function mapSubmission(value: BackendSubmission): Submission {
 }
 
 function mapCreatorProfile(value: BackendProfile): CreatorProfile {
-  return { handle: value.username ? `@${value.username}` : value.headline ?? value.displayName, avatarUrl: value.avatarUrl ?? undefined, displayName: value.displayName, bio: value.bio ?? '', categories: [], verification: value.verificationStatus === 'VERIFIED' ? 'verified' : value.verificationStatus === 'PENDING' ? 'pending' : 'unverified', socialAccounts: [], payoutConnected: false };
+  return { username: value.username ?? '', handle: value.username ? `@${value.username}` : value.headline ?? value.displayName, avatarUrl: value.avatarUrl ?? undefined, displayName: value.displayName, bio: value.bio ?? '', categories: [], verification: value.verificationStatus === 'VERIFIED' ? 'verified' : value.verificationStatus === 'PENDING' ? 'pending' : 'unverified', socialAccounts: [], payoutConnected: false };
 }
 
 function platform(value: string): Campaign['platform'] { return value === 'INSTAGRAM' ? 'instagram' : value === 'SNAPCHAT' ? 'snapchat' : value === 'YOUTUBE' ? 'youtube' : 'tiktok'; }

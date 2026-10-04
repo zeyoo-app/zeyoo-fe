@@ -263,6 +263,8 @@ export interface SocialAccount {
 
 export interface CreatorProfile {
   handle: string;
+  /** The unique username without the leading @, as edited in the profile form. */
+  username: string;
   /** Uploaded during setup or edited later; absent until the user adds one. */
   avatarUrl?: string;
   displayName: string;
@@ -275,8 +277,11 @@ export interface CreatorProfile {
 
 export interface UpdateProfileInput {
   displayName: string;
-  bio: string;
-  categories: string[];
+  /** Without the leading @. */
+  username?: string;
+  bio?: string;
+  /** A new photo's URL; omitted to leave the current one. */
+  avatarUrl?: string;
 }
 
 export interface TeamMember {
@@ -309,6 +314,7 @@ export interface UpdateBrandProfileInput {
 export interface CreatorDirectoryEntry {
   id: string;
   handle: string;
+  avatarUrl?: string;
   displayName: string;
   platforms: SocialPlatform[];
   categories: string[];

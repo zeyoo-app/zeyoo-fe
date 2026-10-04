@@ -44,7 +44,7 @@ export function BrandProfileScreen() {
       <PageHeader title="Profile" />
 
       <div className="flex items-center gap-3.5">
-        <Avatar name={session?.displayName ?? 'Z'} size={52} />
+        <Avatar name={session?.displayName ?? 'Z'} src={profile.data?.logoUrl} size={52} />
         <div className="min-w-0">
           <p className="font-display text-[15px] font-semibold text-text">
             {session?.displayName ?? 'Zeyoo user'}
