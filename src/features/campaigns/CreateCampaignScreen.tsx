@@ -65,8 +65,10 @@ export function CreateCampaignScreen() {
   const [reward, setReward] = useState('');
   const [platform, setPlatform] = useState<SocialPlatform>('instagram');
   const [brief, setBrief] = useState('');
-  const [hashtags, setHashtags] = useState('');
-  const [mentions, setMentions] = useState('');
+  const [hashtags, setHashtags] = useState<string[]>([]);
+  const [hashtagDraft, setHashtagDraft] = useState('');
+  const [mentions, setMentions] = useState<string[]>([]);
+  const [mentionDraft, setMentionDraft] = useState('');
   const [contentRules, setContentRules] = useState<string[]>([]);
   const [ruleDraft, setRuleDraft] = useState('');
   const [references, setReferences] = useState('');
@@ -108,8 +110,9 @@ export function CreateCampaignScreen() {
       budget: dollarsToMoney(budget),
       perCreatorCap: dollarsToMoney(budget),
       requirements: {
-        hashtags: parseTags(hashtags, '#'),
-        mentions: parseTags(mentions, '@'),
+        // A tag still being typed counts: it is committed on submit as well as on a separator.
+        hashtags: appendTags(hashtags, hashtagDraft, '#'),
+        mentions: appendTags(mentions, mentionDraft, '@'),
         contentRules,
         disclosureRequired: true,
       },
@@ -148,8 +151,8 @@ export function CreateCampaignScreen() {
           budget={dollarsToMoney(budget)}
           reward={dollarsToMoney(reward)}
           brief={brief}
-          hashtags={hashtags}
-          mentions={mentions}
+          hashtags={appendTags(hashtags, hashtagDraft, '#').join(' ')}
+          mentions={appendTags(mentions, mentionDraft, '@').join(' ')}
           contentRules={contentRules}
           references={references}
           loading={createCampaign.isPending}
@@ -194,13 +197,17 @@ export function CreateCampaignScreen() {
             <RequirementsStep
               brief={brief}
               hashtags={hashtags}
+              hashtagDraft={hashtagDraft}
               mentions={mentions}
+              mentionDraft={mentionDraft}
               contentRules={contentRules}
               ruleDraft={ruleDraft}
               references={references}
               onBriefChange={setBrief}
               onHashtagsChange={setHashtags}
+              onHashtagDraftChange={setHashtagDraft}
               onMentionsChange={setMentions}
+              onMentionDraftChange={setMentionDraft}
               onRuleDraftChange={setRuleDraft}
               onRuleAdd={addRule}
               onRuleRemove={(rule) => setContentRules((current) => current.filter((entry) => entry !== rule))}
@@ -326,14 +333,18 @@ function RewardsStep(props: RewardsProps) {
 
 interface RequirementsProps {
   brief: string;
-  hashtags: string;
-  mentions: string;
+  hashtags: string[];
+  hashtagDraft: string;
+  mentions: string[];
+  mentionDraft: string;
   contentRules: string[];
   ruleDraft: string;
   references: string;
   onBriefChange: (value: string) => void;
-  onHashtagsChange: (value: string) => void;
-  onMentionsChange: (value: string) => void;
+  onHashtagsChange: (value: string[]) => void;
+  onHashtagDraftChange: (value: string) => void;
+  onMentionsChange: (value: string[]) => void;
+  onMentionDraftChange: (value: string) => void;
   onRuleDraftChange: (value: string) => void;
   onRuleAdd: () => void;
   onRuleRemove: (rule: string) => void;
@@ -360,11 +371,73 @@ function RequirementsStep(props: RequirementsProps) {
           </div>
         ))}
       </div>
-      <Field label="Required Hashtags" placeholder="#GlowWithNimbus" value={props.hashtags} onChange={(event) => props.onHashtagsChange(event.target.value)} />
-      <Field label="Required Mentions" placeholder="@glowbeauty" value={props.mentions} onChange={(event) => props.onMentionsChange(event.target.value)} />
+      <TagsField label="Required Hashtags" prefix="#" placeholder="#GlowWithNimbus" tags={props.hashtags} draft={props.hashtagDraft} onTagsChange={props.onHashtagsChange} onDraftChange={props.onHashtagDraftChange} />
+      <TagsField label="Required Mentions" prefix="@" placeholder="@glowbeauty" tags={props.mentions} draft={props.mentionDraft} onTagsChange={props.onMentionsChange} onDraftChange={props.onMentionDraftChange} />
       <Textarea label="Reference Materials (Optional)" placeholder={'https://…/product-shots.zip\nhttps://…/demo-video.mp4'} value={props.references} onChange={(event) => props.onReferencesChange(event.target.value)} />
       <p className="-mt-3 text-xs text-text-muted">Paste links to videos, images, or files creators should use — one per line.</p>
       <Button disabled={!props.valid} onClick={props.onContinue}>Review Campaign</Button>
+    </div>
+  );
+}
+
+interface TagsFieldProps {
+  label: string;
+  prefix: '#' | '@';
+  placeholder: string;
+  tags: string[];
+  draft: string;
+  onTagsChange: (tags: string[]) => void;
+  onDraftChange: (draft: string) => void;
+}
+
+/**
+ * Hashtags and mentions as separate chips. A space, comma or Enter finishes the tag being
+ * typed, the `#`/`@` is added automatically, and each chip can be removed.
+ */
+function TagsField({ label, prefix, placeholder, tags, draft, onTagsChange, onDraftChange }: TagsFieldProps) {
+  const commitDraft = () => {
+    onTagsChange(appendTags(tags, draft, prefix));
+    onDraftChange('');
+  };
+
+  const handleChange = (text: string) => {
+    if (!/[\s,]/.test(text)) {
+      onDraftChange(text);
+      return;
+    }
+    // A separator was typed: whatever precedes it is finished, whatever follows is the next tag.
+    const parts = text.split(/[\s,]+/);
+    const trailing = /[\s,]$/.test(text) ? '' : (parts.pop() ?? '');
+    onTagsChange(appendTags(tags, parts.join(' '), prefix));
+    onDraftChange(trailing);
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-[13px] font-medium text-text-muted">{label}</p>
+      <div className="flex gap-2">
+        <Field
+          className="flex-1"
+          placeholder={placeholder}
+          value={draft}
+          onChange={(event) => handleChange(event.target.value)}
+          onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitDraft(); } }}
+          aria-label={`New ${label.toLowerCase()}`}
+        />
+        <Button fullWidth={false} variant="secondary" onClick={commitDraft}>Add</Button>
+      </div>
+      {tags.length ? (
+        <div className="flex flex-wrap gap-2">
+          {tags.map((tag) => (
+            <span key={tag} className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-raised px-3 py-1.5 text-sm">
+              {tag}
+              <button type="button" aria-label={`Remove ${tag}`} onClick={() => onTagsChange(tags.filter((entry) => entry !== tag))}>
+                <X className="size-3.5 text-text-muted" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -525,8 +598,19 @@ function dollarsToMoney(value: string): Money {
   };
 }
 
-function parseTags(value: string, prefix: '#' | '@'): string[] {
-  return value.split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean).map((entry) => entry.startsWith(prefix) ? entry : `${prefix}${entry}`);
+function normalizeTag(raw: string, prefix: '#' | '@'): string | null {
+  const body = raw.trim().replace(/^[#@]+/, '').replace(/[^\p{L}\p{N}_.]/gu, '');
+  return body ? `${prefix}${body}` : null;
+}
+
+/** Adds every tag found in `raw` (split on spaces or commas) to `tags`, skipping duplicates. */
+function appendTags(tags: string[], raw: string, prefix: '#' | '@'): string[] {
+  const next = [...tags];
+  for (const token of raw.split(/[\s,]+/)) {
+    const tag = normalizeTag(token, prefix);
+    if (tag && !next.some((existing) => existing.toLowerCase() === tag.toLowerCase())) next.push(tag);
+  }
+  return next;
 }
 
 function parseReferences(value: string): ReferenceMaterial[] {

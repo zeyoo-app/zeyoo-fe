@@ -37,6 +37,12 @@ export function StepCode({
   const [code, setCode] = useState('');
   const identifierLabel = channel === 'email' ? 'email address' : 'phone number';
 
+  // A new code makes the digits typed for the old one meaningless, so start empty.
+  const handleResend = () => {
+    setCode('');
+    onResend?.();
+  };
+
   return (
     <>
       <CodeInput value={code} onChange={setCode} onComplete={onVerify} autoFocus error={error != null} />
@@ -54,7 +60,7 @@ export function StepCode({
             type="button"
             aria-label="Resend the verification code"
             disabled={isResending}
-            onClick={onResend}
+            onClick={handleResend}
             className="px-2 py-3 text-[13px] font-semibold text-text underline underline-offset-2 disabled:opacity-60"
           >
             {isResending ? 'Sending…' : 'Resend code'}

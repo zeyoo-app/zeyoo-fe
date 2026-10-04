@@ -15,7 +15,7 @@ interface BackendTokens { accessToken: string; refreshToken: string }
 interface BackendAccount { id: string; email: string | null; phone?: string | null; type: string; emailVerifiedAt?: string | null; phoneVerifiedAt?: string | null; organizations?: { organizationId: string; name: string }[]; hasCreatorProfile?: boolean }
 interface BackendOrganization { id: string; name: string; website?: string | null; industry?: string | null; logoUrl?: string | null }
 interface BackendCampaign { id: string; title: string; description: string; guidelines?: string | null; platform: string; status: string; currencyCode: string; budgetAmount: number; rewardAmount: number; organization?: { name?: string }; organizationId: string; categoryId?: string | null; endDate?: string; contentType?: string; coverImageUrl?: string | null }
-interface BackendFunding { fundingId: string; clientSecret: string; amountMinor: number; currencyCode: string }
+interface BackendFunding { fundingId: string; clientSecret: string; amountMinor: number; currencyCode: string; status?: 'PENDING' | 'SUCCEEDED' | 'FAILED' }
 interface BackendProfile { displayName: string; username?: string; avatarUrl?: string | null; headline?: string | null; bio?: string | null; verificationStatus?: string }
 interface BackendSubmission { id: string; campaignId: string; status: string; creatorUserId: string; revisions?: { contentType: string; contentUrl: string }[] }
 
@@ -169,7 +169,7 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
     },
     async fundCampaign({ campaignId, amount }) {
       const value = await request<BackendFunding>('POST', `/campaigns/${campaignId}/funding`, { amountMinor: amount.minorUnits });
-      return { fundingId: value.fundingId, status: 'pending', amount: { minorUnits: value.amountMinor, currency: value.currencyCode }, clientSecret: value.clientSecret } satisfies CampaignFunding;
+      return { fundingId: value.fundingId, status: value.status === 'SUCCEEDED' ? 'succeeded' : value.status === 'FAILED' ? 'failed' : 'pending', amount: { minorUnits: value.amountMinor, currency: value.currencyCode }, clientSecret: value.clientSecret } satisfies CampaignFunding;
     },
     async setCampaignStatus({ campaignId, status }) {
       if (status === 'draft') throw new Error('Published campaigns cannot be returned to draft.');
