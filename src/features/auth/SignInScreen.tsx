@@ -94,6 +94,13 @@ export function SignInScreen() {
             ariaLabel="Are you signing in as a Company or a Creator?"
           />
 
+          <div className="flex flex-col gap-2.5">
+            <SocialAuthButtons role={role} />
+            <AuthChannelSwitch value={channel} onChange={switchChannel} />
+          </div>
+
+          <OrDivider label="or" />
+
           {isPhone ? (
             <PhoneInput value={phone} onChange={setPhone} error={error} />
           ) : (
@@ -115,10 +122,6 @@ export function SignInScreen() {
           >
             Continue
           </Button>
-          <AuthChannelSwitch value={channel} onChange={switchChannel} />
-
-          <OrDivider label="or" />
-          <SocialAuthButtons role={role} />
         </>
       )}
 

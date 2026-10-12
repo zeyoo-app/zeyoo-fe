@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { Role, Session } from '../api/types';
 import { useAuthStore } from './authStore';
 import { routeForSession } from './routeForSession';
+import { useSignOutWhenExpired } from './useSignOutWhenExpired';
 
 /**
  * Client-side route guard for a role's app shell. Sends unauthenticated users to
@@ -16,6 +17,7 @@ import { routeForSession } from './routeForSession';
  * which are exactly where a half-onboarded user belongs.
  */
 export function useRequireRole(role: Role, options?: { skipOnboarding?: boolean }): { ready: boolean } {
+  useSignOutWhenExpired();
   const router = useRouter();
   const status = useAuthStore((state) => state.status);
   const session = useAuthStore((state) => state.session);

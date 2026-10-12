@@ -127,7 +127,6 @@ export function SignUpScreen() {
         />
       ) : (
         <StepDetails
-          role={role}
           fullName={fullName}
           onFullNameChange={setFullName}
           channel={channel}

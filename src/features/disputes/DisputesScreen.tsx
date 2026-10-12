@@ -1,25 +1,28 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
 
 import { AsyncContent, Badge, Card, EmptyState, PageHeader } from '@/design-system';
-import { queryKeys, useApi } from '@/shared/api';
 import type { Dispute } from '@/shared/api';
-
-const STATUS_TONE = { open: 'warning', in_review: 'accent', resolved: 'success' } as const;
-const STATUS_LABEL = { open: 'Open', in_review: 'In review', resolved: 'Resolved' } as const;
+import { useDisputes } from '@/shared/disputes/hooks';
+import { disputeStatusPresentation, disputeSubjectLabel } from '@/shared/disputes/presentation';
 
 export function DisputesScreen() {
-  const api = useApi();
-  const query = useQuery({ queryKey: queryKeys.disputes, queryFn: () => api.getDisputes() });
+  const query = useDisputes();
 
   return (
     <>
-      <PageHeader title="Disputes" subtitle="Appeals are usually reviewed within 3 business days." />
+      <PageHeader
+        title="Disputes"
+        subtitle="Appeals and problems you have raised, and where each one stands."
+      />
       <AsyncContent isLoading={query.isLoading} isError={query.isError} data={query.data}>
         {(disputes) =>
           disputes.length === 0 ? (
-            <EmptyState title="No disputes" description="Appeals you open will appear here." />
+            <EmptyState
+              title="No disputes"
+              description="If a submission is rejected unfairly or something goes wrong, you can open a dispute and it will appear here."
+            />
           ) : (
             <div className="flex flex-col gap-3">
               {disputes.map((dispute) => (
@@ -34,24 +37,26 @@ export function DisputesScreen() {
 }
 
 function DisputeCard({ dispute }: { dispute: Dispute }) {
-  return (
-    <Card>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-medium text-text">{dispute.campaignTitle}</p>
-          <p className="mt-0.5 text-xs text-text-muted">{dispute.reason}</p>
-        </div>
-        <Badge tone={STATUS_TONE[dispute.status]}>{STATUS_LABEL[dispute.status]}</Badge>
-      </div>
+  const status = disputeStatusPresentation(dispute.status);
+  const last = dispute.events[dispute.events.length - 1];
 
-      <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
-        {dispute.events.map((event) => (
-          <div key={event.id}>
-            <p className="text-xs font-medium text-text">{event.author}</p>
-            <p className="text-sm text-text-muted">{event.message}</p>
+  return (
+    <Link href={`/disputes/${dispute.id}`} className="block">
+      <Card className="flex flex-col gap-2 p-4 transition-colors hover:bg-surface-hover">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-wide text-text-tertiary">
+              {disputeSubjectLabel(dispute.subjectType)}
+            </p>
+            <p className="truncate font-medium text-text">{dispute.title}</p>
           </div>
-        ))}
-      </div>
-    </Card>
+          <Badge tone={status.tone}>{status.label}</Badge>
+        </div>
+        <p className="line-clamp-2 text-sm text-text-muted">{last?.message ?? dispute.reason}</p>
+        <p className="text-xs text-text-tertiary">
+          Opened {new Date(dispute.createdAt).toLocaleDateString()}
+        </p>
+      </Card>
+    </Link>
   );
 }

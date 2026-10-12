@@ -15,7 +15,7 @@ export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
 
 export type SubmissionKind = 'link' | 'upload';
 
-export type VerificationStatus = 'unverified' | 'pending' | 'verified';
+export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 
 /** Third-party sign-in providers (backend: POST /auth/oauth/:provider). */
 export type OAuthProvider = 'google' | 'apple';
@@ -23,6 +23,8 @@ export type OAuthProvider = 'google' | 'apple';
 export interface Session {
   userId: string;
   role: Role;
+  /** A Zeyoo staff account: lands in the admin console instead of an app role. */
+  isAdmin?: boolean;
   displayName: string;
   email: string;
   /** False right after sign-up until the emailed 6-digit code is confirmed. */
@@ -90,14 +92,18 @@ export interface CampaignFunding {
   fundingId: string;
   status: 'pending' | 'succeeded' | 'failed';
   amount: Money;
-  clientSecret?: string;
+  /** Stripe's hosted payment page; absent when the payment settled without it. */
+  checkoutUrl?: string;
 }
 
 export interface Campaign {
   id: string;
   title: string;
   brandName: string;
+  /** The primary (first) platform. */
   platform: SocialPlatform;
+  /** Every platform creators may post on. */
+  platforms: SocialPlatform[];
   contentType?: CampaignContentType;
   category?: CampaignCategory;
   endDate?: string;
@@ -116,10 +122,14 @@ export interface Campaign {
   referenceMaterials: ReferenceMaterial[];
 }
 
+/** Public campaigns appear in Discover; invite-only ones are reachable only by invited creators. */
+export type CampaignVisibility = 'public' | 'private';
+
 export interface CreateCampaignInput {
   title: string;
-  platform: SocialPlatform;
+  platforms: SocialPlatform[];
   contentType: CampaignContentType;
+  visibility: CampaignVisibility;
   categoryId?: string;
   endDate: string;
   coverImageUrl?: string;
@@ -134,6 +144,8 @@ export interface CreateCampaignInput {
 export interface FundCampaignInput {
   campaignId: string;
   amount: Money;
+  /** Which client is paying; decides where Stripe's return page leads. */
+  client: 'web' | 'app';
 }
 
 // -------------------------------------------------------------------------------------
@@ -144,7 +156,17 @@ export interface FundCampaignInput {
 export interface Submission {
   id: string;
   campaignId: string;
+  creatorId: string;
   creatorHandle: string;
+  /** The creator's display name, when the backend could resolve it. */
+  creatorName?: string;
+  creatorAvatarUrl?: string;
+  /** The post is on a platform account the creator verified by signing in. */
+  accountVerified?: boolean;
+  /** A fraud review is stopping this creator's new earnings on the campaign. */
+  earningsPaused?: boolean;
+  /** Engagement risk worked out from the latest readings. */
+  risk?: RiskLevel;
   postUrl: string;
   kind: SubmissionKind;
   views: number;
@@ -160,6 +182,8 @@ export interface Submission {
 export interface CreatorSubmission extends Submission {
   campaignTitle: string;
   brandName: string;
+  /** The brand's fraud review has paused new earnings on this campaign. */
+  earningsPaused?: boolean;
   /** How much of the per-creator cap this submission has reached. */
   cap: Money;
   capReached: boolean;
@@ -171,6 +195,22 @@ export interface ReviewSubmissionInput {
   submissionId: string;
   decision: ReviewDecision;
   reason?: string;
+}
+
+/** Platforms a creator authorises through the platform's own OAuth screen. */
+export type ConnectablePlatform = 'instagram' | 'tiktok';
+
+export interface RecordViewsInput {
+  submissionId: string;
+  views: number;
+}
+
+/** What happened when views were recorded or synced for one submission. */
+export interface ViewTrackingOutcome {
+  status: 'recorded' | 'unavailable';
+  views?: number;
+  /** Why the platform could not be read, when `status` is `unavailable`. */
+  message?: string;
 }
 
 export interface SubmitParticipationInput {
@@ -258,6 +298,8 @@ export interface SocialAccount {
   platform: SocialPlatform;
   handle: string;
   connected: boolean;
+  /** The creator proved they own this account by signing in to the platform. */
+  verified: boolean;
   followers: number;
 }
 
@@ -271,6 +313,8 @@ export interface CreatorProfile {
   bio: string;
   categories: string[];
   verification: VerificationStatus;
+  /** Why a verification request was not approved, when it was not. */
+  verificationNote?: string;
   socialAccounts: SocialAccount[];
   payoutConnected: boolean;
 }
@@ -323,8 +367,28 @@ export interface CreatorDirectoryEntry {
 }
 
 export interface InviteCreatorInput {
-  creatorId: string;
   campaignId: string;
+  /** Invite a creator found in the directory... */
+  creatorId?: string;
+  /** ...or one the brand already knows, by the email they signed up with. */
+  email?: string;
+}
+
+export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'revoked';
+
+export interface CampaignInvitation {
+  id: string;
+  campaignId: string;
+  creatorId: string;
+  name: string;
+  handle: string;
+  avatarUrl?: string;
+  status: InvitationStatus;
+}
+
+export interface RevokeInvitationInput {
+  campaignId: string;
+  invitationId: string;
 }
 
 // -------------------------------------------------------------------------------------
@@ -343,6 +407,8 @@ export interface AppNotification {
 }
 
 export interface NotificationPreferences {
+  /** Whether notifications are also delivered as push messages to this person's devices. */
+  pushEnabled: boolean;
   submissionUpdates: boolean;
   payoutUpdates: boolean;
   campaignInvites: boolean;
@@ -353,28 +419,79 @@ export interface NotificationPreferences {
 // Disputes
 // -------------------------------------------------------------------------------------
 
-export type DisputeStatus = 'open' | 'in_review' | 'resolved';
+export type DisputeStatus = 'open' | 'in_review' | 'upheld' | 'denied';
+
+export type DisputeSubjectType = 'submission' | 'campaign' | 'withdrawal' | 'fraud_case' | 'other';
 
 export interface DisputeEvent {
   id: string;
-  author: string;
+  author: 'you' | 'support' | 'other';
   message: string;
   date: string;
 }
 
 export interface Dispute {
   id: string;
-  submissionId: string;
-  campaignTitle: string;
+  subjectType: DisputeSubjectType;
+  subjectId?: string;
+  /** What the dispute is about, in words: a campaign title, "Withdrawal", ... */
+  title: string;
   status: DisputeStatus;
   reason: string;
   createdAt: string;
+  openedByName: string;
   events: DisputeEvent[];
 }
 
 export interface OpenDisputeInput {
-  submissionId: string;
+  subjectType: DisputeSubjectType;
+  subjectId?: string;
   reason: string;
+}
+
+export interface DecideDisputeInput {
+  disputeId: string;
+  outcome: 'upheld' | 'denied';
+  note: string;
+}
+
+export type RiskLevel = 'low' | 'medium' | 'high';
+
+/** open: earnings paused · confirmed: problem confirmed, earnings stay stopped · cleared: earnings resume. */
+export type FraudCaseStatus = 'open' | 'confirmed' | 'cleared';
+
+export interface FraudCase {
+  id: string;
+  campaignId: string;
+  campaignTitle: string;
+  creatorId: string;
+  creatorName: string;
+  level: RiskLevel;
+  status: FraudCaseStatus;
+  note?: string;
+  createdAt: string;
+}
+
+export interface FlagCreatorInput {
+  campaignId: string;
+  creatorId: string;
+  level: RiskLevel;
+  note?: string;
+}
+
+export interface CampaignReport {
+  campaignId: string;
+  title: string;
+  currency: string;
+  budget: Money;
+  funded: Money;
+  spent: Money;
+  totalViews: number;
+  /** Cost of 1,000 views so far, or absent before any views. */
+  costPerThousandViews?: Money;
+  applications: { total: number; approved: number };
+  submissions: { total: number; approved: number };
+  topCreators: { creatorId: string; name: string; views: number; earned: Money; paused: boolean }[];
 }
 
 // -------------------------------------------------------------------------------------
@@ -398,4 +515,221 @@ export interface AiIdeasRequest {
 
 export interface AiIdeasResult {
   ideas: string[];
+}
+
+// -------------------------------------------------------------------------------------
+// Admin console
+// -------------------------------------------------------------------------------------
+
+export interface MoneyTotal {
+  currencyCode: string;
+  amountMinor: number;
+}
+
+export interface AdminOverview {
+  users: { creators: number; brands: number; suspended: number; joinedLast7Days: number };
+  organizations: number;
+  campaigns: { draft: number; published: number; closed: number };
+  money: { funded: MoneyTotal[]; paidOut: MoneyTotal[]; creatorEarnings: MoneyTotal[] };
+  queues: {
+    withdrawalsRequested: number;
+    withdrawalsHeld: number;
+    disputesActive: number;
+    fraudCasesOpen: number;
+    verificationsPending: number;
+  };
+}
+
+export type AdminUserType = 'BRAND_USER' | 'CREATOR' | 'ADMIN';
+export type AdminUserStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'DELETED';
+
+export interface AdminUser {
+  id: string;
+  email: string | null;
+  phone: string | null;
+  type: AdminUserType;
+  status: AdminUserStatus;
+  createdAt: string;
+  displayName: string | null;
+  organizationName: string | null;
+}
+
+export interface AdminUserQuery {
+  search?: string;
+  type?: AdminUserType;
+  status?: AdminUserStatus;
+}
+
+export interface AdminOrganization {
+  id: string;
+  name: string;
+  industry: string | null;
+  website: string | null;
+  createdAt: string;
+  ownerEmail: string | null;
+  memberCount: number;
+  campaignCount: number;
+  funded: MoneyTotal[];
+}
+
+export type AdminCampaignStatus = 'DRAFT' | 'PUBLISHED' | 'CLOSED';
+
+export interface AdminPage<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface AdminCampaign {
+  id: string;
+  title: string;
+  organizationName: string;
+  status: AdminCampaignStatus;
+  currencyCode: string;
+  budgetMinor: number;
+  fundedMinor: number;
+  paidToCreatorsMinor: number;
+  refundedMinor: number;
+  /** Unspent budget a closed or draft campaign can still return to the brand. */
+  refundableMinor: number;
+  submissionCount: number;
+  createdAt: string;
+  publishedAt: string | null;
+}
+
+export interface AdminFunding {
+  id: string;
+  campaignTitle: string;
+  organizationName: string;
+  amountMinor: number;
+  currencyCode: string;
+  status: 'PENDING' | 'SUCCEEDED' | 'FAILED';
+  reference: string;
+  createdAt: string;
+}
+
+export type AdminWithdrawalStatus = 'REQUESTED' | 'HELD' | 'PAID' | 'REJECTED';
+
+export interface AdminWithdrawal {
+  id: string;
+  creatorName: string;
+  creatorEmail: string | null;
+  amountMinor: number;
+  currencyCode: string;
+  status: AdminWithdrawalStatus;
+  holdReason: string | null;
+  destinationAccountId: string | null;
+  transferId: string | null;
+  decidedByEmail: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminAuditEntry {
+  id: string;
+  adminEmail: string | null;
+  method: string;
+  route: string;
+  params: Record<string, string> | null;
+  body: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AdminCategory {
+  id: string;
+  name: string;
+}
+
+export interface AdminVerification {
+  userId: string;
+  displayName: string;
+  username: string;
+  email: string | null;
+  country: string | null;
+  headline: string | null;
+  bio: string | null;
+  requestedAt: string;
+  accounts: { platform: string; handle: string; verified: boolean }[];
+}
+
+export interface AdminStaff {
+  id: string;
+  email: string | null;
+  status: AdminUserStatus;
+  createdAt: string;
+  isYou: boolean;
+}
+
+export interface AdminUserDetail {
+  user: {
+    id: string;
+    email: string | null;
+    phone: string | null;
+    type: AdminUserType;
+    status: AdminUserStatus;
+    emailVerified: boolean;
+    createdAt: string;
+  };
+  creator: {
+    displayName: string;
+    username: string;
+    country: string | null;
+    headline: string | null;
+    bio: string | null;
+    verificationStatus: 'UNVERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+    verificationNote: string | null;
+    accounts: { platform: string; handle: string; verified: boolean }[];
+    payoutConnected: boolean;
+    wallet: {
+      available: Money;
+      pending: Money;
+      held: Money;
+      lifetimeEarned: Money;
+    } | null;
+    submissions: { total: number; approved: number };
+    earnings: { campaignTitle: string; accruedMinor: number; currencyCode: string; paused: boolean }[];
+    withdrawals: { id: string; amountMinor: number; currencyCode: string; status: string; createdAt: string }[];
+  } | null;
+  organizations: {
+    id: string;
+    name: string;
+    role: string;
+    campaignCount: number;
+    funded: MoneyTotal[];
+    subscription: { planKey: string; status: string } | null;
+  }[];
+  disputes: { id: string; subjectType: string; status: string; reason: string; createdAt: string }[];
+  fraudCases: { id: string; campaignTitle: string; level: string; status: string; createdAt: string }[];
+}
+
+export interface AdminBilling {
+  plans: {
+    key: string;
+    name: string;
+    priceMinor: number;
+    currencyCode: string;
+    connectedToStripe: boolean;
+    subscribers: number;
+  }[];
+  subscriptions: {
+    id: string;
+    organizationName: string;
+    planName: string;
+    status: string;
+    since: string;
+  }[];
+  summary: {
+    active: number;
+    pastDue: number;
+    canceled: number;
+    incomplete: number;
+    organizationsWithCard: number;
+  };
+}
+
+export interface AdminRefundOutcome {
+  refundedMinor: number;
+  currencyCode: string;
+  refunds: number;
 }

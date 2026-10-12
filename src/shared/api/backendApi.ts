@@ -1,3 +1,4 @@
+import { SESSION_EXPIRED_EVENT } from '../auth/sessionEvents';
 import type { Money } from '../money/money';
 import type { ZeyooApi } from './ZeyooApi';
 import type {
@@ -6,23 +7,66 @@ import type {
   CampaignCategory,
   CampaignFunding,
   CampaignRequirements,
+  CampaignInvitation,
+  AdminAuditEntry,
+  AdminBilling,
+  AdminPage,
+  AdminRefundOutcome,
+  AdminStaff,
+  AdminUserDetail,
+  AdminVerification,
+  AdminCampaign,
+  AdminCategory,
+  AdminFunding,
+  AdminOrganization,
+  AdminOverview,
+  AdminUser,
+  AdminWithdrawal,
+  CampaignReport,
   CreatorProfile,
+  Dispute,
+  DisputeEvent,
+  FraudCase,
+  CreatorSubmission,
+  NotificationPreferences,
   Session,
+  SocialAccount,
   Submission,
+  ViewTrackingOutcome,
 } from './types';
 
 interface BackendTokens { accessToken: string; refreshToken: string }
 interface BackendAccount { id: string; email: string | null; phone?: string | null; type: string; emailVerifiedAt?: string | null; phoneVerifiedAt?: string | null; organizations?: { organizationId: string; name: string }[]; hasCreatorProfile?: boolean }
 interface BackendOrganization { id: string; name: string; website?: string | null; industry?: string | null; logoUrl?: string | null }
-interface BackendCampaign { id: string; title: string; description: string; guidelines?: string | null; platform: string; status: string; currencyCode: string; budgetAmount: number; rewardAmount: number; organization?: { name?: string }; organizationId: string; categoryId?: string | null; endDate?: string; contentType?: string; coverImageUrl?: string | null }
-interface BackendFunding { fundingId: string; clientSecret: string; amountMinor: number; currencyCode: string; status?: 'PENDING' | 'SUCCEEDED' | 'FAILED' }
-interface BackendProfile { displayName: string; username?: string; avatarUrl?: string | null; headline?: string | null; bio?: string | null; verificationStatus?: string }
-interface BackendSubmission { id: string; campaignId: string; status: string; creatorUserId: string; revisions?: { contentType: string; contentUrl: string }[] }
+interface BackendCampaign { id: string; title: string; description: string; guidelines?: string | null; platform: string; platforms?: string[]; maxRewardPerCreatorAmount?: number | null; hashtags?: string[]; mentions?: string[]; referenceMaterials?: { name: string; url: string }[]; status: string; currencyCode: string; budgetAmount: number; rewardAmount: number; organization?: { name?: string }; organizationId: string; categoryId?: string | null; endDate?: string; contentType?: string; coverImageUrl?: string | null }
+interface BackendFunding { fundingId: string; checkoutUrl?: string | null; amountMinor: number; currencyCode: string; status?: 'PENDING' | 'SUCCEEDED' | 'FAILED' }
+interface BackendProfile { displayName: string; username?: string; avatarUrl?: string | null; headline?: string | null; bio?: string | null; verificationStatus?: string; verificationNote?: string | null }
+interface BackendSubmission {
+  id: string; campaignId: string; status: string; creatorUserId: string;
+  revisions?: { contentType: string; contentUrl: string }[];
+  creator?: { displayName: string; username: string; avatarUrl: string | null } | null;
+  accountVerified?: boolean;
+}
+interface BackendInvitation {
+  id: string; campaignId: string; creatorUserId: string; status: string;
+  creator?: { displayName: string; username: string; avatarUrl: string | null } | null;
+}
+interface BackendSocialAccount { platform: string; handle: string; status: string; verifiedAt?: string | null }
+interface BackendCreatorCampaignEarnings { campaignId: string; campaignTitle: string; currencyCode: string; views: number; accruedMinor: number; capMinor: number | null; paused: boolean }
 
 const ZERO_USD: Money = { minorUnits: 0, currency: 'USD' };
 
 export function createBackendApi(baseUrl: string): ZeyooApi {
   const root = baseUrl.replace(/\/$/, '');
+
+  /** The creator's profile together with their connected accounts, which live on their own endpoint. */
+  async function readCreatorProfile(): Promise<CreatorProfile> {
+    const [profile, accounts] = await Promise.all([
+      request<BackendProfile>('GET', '/creator-profile'),
+      request<BackendSocialAccount[]>('GET', '/creator-profile/social-accounts'),
+    ]);
+    return mapCreatorProfile(profile, accounts);
+  }
   let accessToken: string | null = null;
   let refreshRequest: Promise<string | null> | null = null;
   let organizationId: string | null = null;
@@ -78,6 +122,9 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       accessToken = null;
       const renewed = await refreshAccessToken();
       if (renewed) return request<T>(method, path, body, true, false);
+    }
+    if (response.status === 401 && authenticate && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
     if (!response.ok) throw new Error(await apiErrorMessage(response));
     if (response.status === 204) return undefined as T;
@@ -161,24 +208,46 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       const id = await currentOrganizationId();
       const value = await request<BackendCampaign>('POST', `/organizations/${id}/campaigns`, {
         title: input.title, description: describeCampaign(input), guidelines: serializeGuidelines(input.requirements),
-        platform: input.platform.toUpperCase(), contentType: input.contentType.toUpperCase(), categoryId: input.categoryId,
-        coverImageUrl: await hostedImageUrl(input.coverImageUrl), visibility: 'PRIVATE', startDate: new Date().toISOString(), endDate: input.endDate,
+        platforms: input.platforms.map((item) => item.toUpperCase()), hashtags: input.requirements.hashtags, mentions: input.requirements.mentions, referenceMaterials: (input.referenceMaterials ?? []).map(({ name, url }) => ({ name, url })), maxRewardPerCreatorAmount: input.perCreatorCap.minorUnits > 0 && input.perCreatorCap.minorUnits < input.budget.minorUnits ? input.perCreatorCap.minorUnits : undefined, contentType: input.contentType.toUpperCase(), categoryId: input.categoryId,
+        coverImageUrl: await hostedImageUrl(input.coverImageUrl), visibility: input.visibility === 'private' ? 'PRIVATE' : 'PUBLIC', startDate: new Date().toISOString(), endDate: input.endDate,
         currencyCode: input.budget.currency, budgetAmount: input.budget.minorUnits, rewardType: 'PER_VIEW', rewardAmount: input.ratePerThousandViews.minorUnits,
       });
       return mapCampaign(value, organizationName);
     },
-    async fundCampaign({ campaignId, amount }) {
-      const value = await request<BackendFunding>('POST', `/campaigns/${campaignId}/funding`, { amountMinor: amount.minorUnits });
-      return { fundingId: value.fundingId, status: value.status === 'SUCCEEDED' ? 'succeeded' : value.status === 'FAILED' ? 'failed' : 'pending', amount: { minorUnits: value.amountMinor, currency: value.currencyCode }, clientSecret: value.clientSecret } satisfies CampaignFunding;
+    async getCampaignFunding(campaignId) {
+      const value = await request<BackendFunding | null>('GET', `/campaigns/${campaignId}/funding`);
+      return value ? mapFunding(value) : null;
+    },
+    async fundCampaign({ campaignId, amount, client }) {
+      return mapFunding(await request<BackendFunding>('POST', `/campaigns/${campaignId}/funding`, { amountMinor: amount.minorUnits, client }));
     },
     async setCampaignStatus({ campaignId, status }) {
       if (status === 'draft') throw new Error('Published campaigns cannot be returned to draft.');
       return mapCampaign(await request<BackendCampaign>('POST', `/campaigns/${campaignId}/${status === 'live' ? 'publish' : 'close'}`), organizationName);
     },
     async getDiscoverCampaigns() { return (await request<BackendCampaign[]>('GET', '/campaigns/discover')).map((item) => mapCampaign(item, item.organization?.name ?? 'Brand')); },
-    async getCampaignSubmissions(campaignId) { return (await request<BackendSubmission[]>('GET', `/campaigns/${campaignId}/submissions`)).map(mapSubmission); },
+    async getCampaignSubmissions(campaignId) {
+      const [submissions, earnings] = await Promise.all([
+        request<BackendSubmission[]>('GET', `/campaigns/${campaignId}/submissions`),
+        request<BackendCampaignEarnings>('GET', `/campaigns/${campaignId}/earnings`),
+      ]);
+      return submissions.map((submission) => withEarnings(mapSubmission(submission), submission.creatorUserId, earnings));
+    },
+    async deleteAccount() { await request<void>('DELETE', '/me/account', { confirmation: 'DELETE' }); },
+    async recordSubmissionViews({ submissionId, views }) {
+      return toTrackingOutcome(await request<BackendTrackingResult>('POST', `/submissions/${submissionId}/views`, { views }));
+    },
+    async syncSubmissionViews(submissionId) {
+      return toTrackingOutcome(await request<BackendTrackingResult>('POST', `/submissions/${submissionId}/views/sync`));
+    },
     async reviewSubmission({ submissionId, decision, reason }) { return mapSubmission(await request<BackendSubmission>('POST', `/submissions/${submissionId}/review`, { decision: decision === 'approve' ? 'APPROVED' : 'REJECTED', note: reason })); },
-    async getMySubmissions() { return (await request<BackendSubmission[]>('GET', '/me/submissions')).map((item) => ({ ...mapSubmission(item), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false })); },
+    async getMySubmissions() {
+      const [submissions, earnings] = await Promise.all([
+        request<BackendSubmission[]>('GET', '/me/submissions'),
+        request<BackendCreatorCampaignEarnings[]>('GET', '/me/campaign-earnings'),
+      ]);
+      return submissions.map((submission) => withCreatorEarnings(mapSubmission(submission), earnings));
+    },
     async submitParticipation({ campaignId, postUrl, kind }) { return { ...mapSubmission(await request<BackendSubmission>('POST', `/campaigns/${campaignId}/submissions`, { contentType: kind.toUpperCase(), contentUrl: postUrl })), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false }; },
     async getBrandProfile() {
       const id = await currentOrganizationId();
@@ -194,16 +263,36 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       organizationName = organization.name;
       return { organizationName: organization.name, website: organization.website ?? undefined, industry: organization.industry ?? undefined, logoUrl: organization.logoUrl ?? undefined, plan: 'Growth', teamMembers: [] };
     },
-    async getCreatorProfile() { return mapCreatorProfile(await request<BackendProfile>('GET', '/creator-profile')); },
-    async updateProfile(input) { return mapCreatorProfile(await request<BackendProfile>('PATCH', '/creator-profile', { displayName: input.displayName, username: input.username, bio: input.bio, avatarUrl: await hostedImageUrl(input.avatarUrl) })); },
-    async startVerification() { return mapCreatorProfile(await request<BackendProfile>('POST', '/creator-profile/verification')); },
-    async connectSocial(platform) { await request('POST', '/creator-profile/social-accounts', { platform: platform.toUpperCase(), handle: platform }); return mapCreatorProfile(await request<BackendProfile>('GET', '/creator-profile')); },
-    async getCreatorDirectory() { return (await request<(BackendProfile & { userId: string })[]>('GET', '/creators')).map((creator) => ({ id: creator.userId, handle: creator.headline ?? creator.displayName, displayName: creator.displayName, avatarUrl: creator.avatarUrl ?? undefined, platforms: [], categories: [], followers: 0, averageViews: 0 })); },
-    async inviteCreator({ creatorId, campaignId }) { await request('POST', `/campaigns/${campaignId}/invitations`, { creatorUserId: creatorId }); },
+    getCreatorProfile: readCreatorProfile,
+    async updateProfile(input) { await request('PATCH', '/creator-profile', { displayName: input.displayName, username: input.username, bio: input.bio, avatarUrl: await hostedImageUrl(input.avatarUrl) }); return readCreatorProfile(); },
+    async startVerification() { await request('POST', '/creator-profile/verification'); return readCreatorProfile(); },
+    async startPlatformConnection({ platform, client }) {
+      return request<{ authorizationUrl: string }>('POST', `/me/social-connections/${platform}/start`, { client });
+    },
+    async completePlatformConnection({ code, state }) {
+      await request('POST', '/me/social-connections/complete', { code, state });
+      return await readCreatorProfile();
+    },
+    async connectSocial(platform) { await request('POST', '/creator-profile/social-accounts', { platform: platform.toUpperCase(), handle: platform }); return await readCreatorProfile(); },
+    async getCreatorDirectory() { return (await request<(BackendProfile & { userId: string; socialAccounts?: BackendSocialAccount[] })[]>('GET', '/creators')).map((creator) => ({ id: creator.userId, handle: creator.username ? `@${creator.username}` : creator.headline ?? creator.displayName, displayName: creator.displayName, avatarUrl: creator.avatarUrl ?? undefined, platforms: (creator.socialAccounts ?? []).map((account) => platform(account.platform)), categories: [], followers: 0, averageViews: 0 })); },
+    async inviteCreator({ campaignId, creatorId, email }) {
+      await request('POST', `/campaigns/${campaignId}/invitations`, creatorId ? { creatorUserId: creatorId } : { creatorEmail: email });
+    },
+    async getCampaignInvitations(campaignId) {
+      return (await request<BackendInvitation[]>('GET', `/campaigns/${campaignId}/invitations`)).map(mapInvitation);
+    },
+    async revokeInvitation({ campaignId, invitationId }) {
+      await request('DELETE', `/campaigns/${campaignId}/invitations/${invitationId}`);
+    },
     async getNotifications() { return (await request<{ id: string; type: string; title: string; body: string; createdAt: string; readAt?: string | null }[]>('GET', '/me/notifications')).map((item) => ({ id: item.id, type: notificationType(item.type), title: item.title, body: item.body, date: item.createdAt, read: Boolean(item.readAt) })); },
     async markNotificationsRead() { await request('POST', '/me/notifications/read-all'); return this.getNotifications(); },
-    async getNotificationPreferences() { const value = await request<{ emailEnabled: boolean; pushEnabled: boolean }>('GET', '/me/notification-preferences'); return { submissionUpdates: value.pushEnabled, payoutUpdates: value.pushEnabled, campaignInvites: value.pushEnabled, productNews: value.emailEnabled }; },
-    async updateNotificationPreferences(prefs) { await request('PATCH', '/me/notification-preferences', { pushEnabled: prefs.submissionUpdates || prefs.payoutUpdates || prefs.campaignInvites, emailEnabled: prefs.productNews }); return prefs; },
+    async getNotificationPreferences() {
+      return pickNotificationPreferences(await request<NotificationPreferences>('GET', '/me/notification-preferences'));
+    },
+    async updateNotificationPreferences(prefs) {
+      const saved = await request<NotificationPreferences>('PATCH', '/me/notification-preferences', pickNotificationPreferences(prefs));
+      return pickNotificationPreferences(saved);
+    },
     async getWallet() { return request('GET', '/me/wallet'); },
     async getLedger() { return request('GET', '/me/ledger'); },
     async connectPayout() { return request('POST', '/me/payout/connect'); },
@@ -212,8 +301,78 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
     async getBrandBilling() { const id = await currentOrganizationId(); return request('GET', `/organizations/${id}/billing`); },
     async setBillingPlan(plan) { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/subscription/checkout`, { planKey: plan.toLowerCase() }); },
     async setBrandPaymentMethod() { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/payment-methods`); },
-    async getDisputes() { return request('GET', '/disputes'); },
-    async openDispute(input) { return request('POST', '/disputes', { subjectType: 'SUBMISSION', subjectId: input.submissionId, reason: input.reason }); },
+    async getDisputes() { return (await request<BackendDispute[]>('GET', '/disputes')).map(mapDispute); },
+    async getDispute(disputeId) { return mapDispute(await request<BackendDispute>('GET', `/disputes/${disputeId}`)); },
+    async openDispute(input) {
+      return mapDispute(await request<BackendDispute>('POST', '/disputes', { subjectType: input.subjectType.toUpperCase(), subjectId: input.subjectId, reason: input.reason }));
+    },
+    async sendDisputeMessage({ disputeId, message }) {
+      return mapDispute(await request<BackendDispute>('POST', `/disputes/${disputeId}/messages`, { message }));
+    },
+    async getCampaignFraudCases(campaignId) {
+      return (await request<BackendFraudCase[]>('GET', `/campaigns/${campaignId}/fraud-cases`)).map(mapFraudCase);
+    },
+    async getMyFraudCases() { return (await request<BackendFraudCase[]>('GET', '/me/fraud-cases')).map(mapFraudCase); },
+    async flagCreator({ campaignId, creatorId, level, note }) {
+      return mapFraudCase(await request<BackendFraudCase>('POST', `/campaigns/${campaignId}/fraud-cases`, { creatorUserId: creatorId, level: level.toUpperCase(), note }));
+    },
+    async closeFraudCase({ caseId, action }) {
+      return mapFraudCase(await request<BackendFraudCase>('POST', `/fraud-cases/${caseId}/${action === 'confirm' ? 'resolve' : 'dismiss'}`));
+    },
+    async getCampaignReport(campaignId) { return mapReport(await request<BackendReport>('GET', `/campaigns/${campaignId}/report`)); },
+    async getAdminOverview() { return request<AdminOverview>('GET', '/admin/overview'); },
+    async getAdminUsers(query) {
+      const params = new URLSearchParams();
+      if (query.search) params.set('search', query.search);
+      if (query.type) params.set('type', query.type);
+      if (query.status) params.set('status', query.status);
+      if (query.page) params.set('page', String(query.page));
+      return request<AdminPage<AdminUser>>('GET', `/admin/users?${params.toString()}`);
+    },
+    async getAdminUserDetail(userId) { return request<AdminUserDetail>('GET', `/admin/users/${userId}`); },
+    async getAdminVerifications(page = 1) { return request<AdminPage<AdminVerification>>('GET', `/admin/verifications?page=${page}`); },
+    async reviewAdminVerification({ userId, approve, note }) {
+      await request('POST', `/admin/verifications/${userId}/${approve ? 'approve' : 'reject'}`, approve ? undefined : { note });
+    },
+    async getAdminStaff() { return request<AdminStaff[]>('GET', '/admin/staff'); },
+    async addAdminStaff(email) { await request('POST', '/admin/staff', { email }); },
+    async setAdminStaffActive({ userId, active }) {
+      await request('POST', `/admin/staff/${userId}/${active ? 'reactivate' : 'deactivate'}`);
+    },
+    async getAdminBilling() { return request<AdminBilling>('GET', '/admin/billing'); },
+    async refundAdminCampaign(campaignId) { return request<AdminRefundOutcome>('POST', `/admin/campaigns/${campaignId}/refund`); },
+    async setAdminUserSuspended({ userId, suspended }) {
+      await request('POST', `/admin/users/${userId}/${suspended ? 'suspend' : 'reactivate'}`);
+    },
+    async getAdminOrganizations(page = 1) { return request<AdminPage<AdminOrganization>>('GET', `/admin/organizations?page=${page}`); },
+    async getAdminCampaigns(query) {
+      const params = new URLSearchParams();
+      if (query.status) params.set('status', query.status);
+      if (query.search) params.set('search', query.search);
+      if (query.page) params.set('page', String(query.page));
+      return request<AdminPage<AdminCampaign>>('GET', `/admin/campaigns?${params.toString()}`);
+    },
+    async closeAdminCampaign(campaignId) { await request('POST', `/admin/campaigns/${campaignId}/close`); },
+    async getAdminFundings(page = 1) { return request<AdminPage<AdminFunding>>('GET', `/admin/fundings?page=${page}`); },
+    async getAdminWithdrawals(scope, page = 1) { return request<AdminPage<AdminWithdrawal>>('GET', `/admin/withdrawals?scope=${scope}&page=${page}`); },
+    async decideAdminWithdrawal({ withdrawalId, action, reason }) {
+      await request('POST', `/admin/withdrawals/${withdrawalId}/${action}`, action === 'hold' ? { reason } : undefined);
+    },
+    async getAdminCategories() { return request<AdminCategory[]>('GET', '/admin/categories'); },
+    async createAdminCategory(name) { await request('POST', '/admin/campaign-categories', { name }); },
+    async getAdminAuditLog(page = 1) { return request<AdminPage<AdminAuditEntry>>('GET', `/admin/audit-log?page=${page}`); },
+    async getAdminDisputes(scope) { return (await request<BackendDispute[]>('GET', `/admin/disputes?scope=${scope}`)).map(mapDispute); },
+    async reviewDispute(disputeId) { return mapDispute(await request<BackendDispute>('POST', `/admin/disputes/${disputeId}/review`)); },
+    async decideDispute({ disputeId, outcome, note }) {
+      return mapDispute(await request<BackendDispute>('POST', `/admin/disputes/${disputeId}/decision`, { outcome: outcome.toUpperCase(), note }));
+    },
+    async getAdminFraudCases(status) {
+      const query = status ? `?status=${{ open: 'OPEN', confirmed: 'RESOLVED', cleared: 'DISMISSED' }[status]}` : '';
+      return (await request<BackendFraudCase[]>('GET', `/admin/fraud-cases${query}`)).map(mapFraudCase);
+    },
+    async adminCloseFraudCase({ caseId, action }) {
+      return mapFraudCase(await request<BackendFraudCase>('POST', `/admin/fraud-cases/${caseId}/${action}`));
+    },
     async generateBrief(input) { return request('POST', '/ai/campaign-brief', { idea: `${input.product}: ${input.goal} for ${input.platform}` }); },
     async generateContentIdeas(input) { return request('POST', '/ai/content-ideas', { topic: input.campaignId }); },
   };
@@ -234,6 +393,7 @@ function mapSession(account: BackendAccount): Session {
   return {
     userId: account.id,
     role: account.type === 'BRAND_USER' ? 'brand' : 'creator',
+    isAdmin: account.type === 'ADMIN',
     displayName: account.organizations?.[0]?.name ?? account.email?.split('@')[0] ?? account.phone ?? 'Zeyoo user',
     email: account.email ?? '',
     emailVerified: account.emailVerifiedAt != null || account.phoneVerifiedAt != null,
@@ -244,20 +404,173 @@ function mapSession(account: BackendAccount): Session {
 
 function mapCampaign(value: BackendCampaign, brandName: string): Campaign {
   const currency = value.currencyCode || 'USD';
-  return { id: value.id, title: value.title, brandName, platform: platform(value.platform), contentType: value.contentType === 'CLIPPING' ? 'clipping' : 'ugc', endDate: value.endDate, coverImageUrl: value.coverImageUrl ?? undefined, ratePerThousandViews: { minorUnits: value.rewardAmount, currency }, budget: { minorUnits: value.budgetAmount, currency }, budgetSpent: { minorUnits: 0, currency }, perCreatorCap: { minorUnits: value.budgetAmount, currency }, status: value.status === 'PUBLISHED' ? 'live' : value.status === 'CLOSED' ? 'closed' : 'draft', brief: value.description, requirements: { hashtags: [], mentions: [], contentRules: parseGuidelines(value.guidelines), disclosureRequired: true }, submissionCount: 0, referenceMaterials: [] };
+  return { id: value.id, title: value.title, brandName, platform: platform(value.platform), platforms: (value.platforms?.length ? value.platforms : [value.platform]).map(platform), contentType: value.contentType === 'CLIPPING' ? 'clipping' : 'ugc', endDate: value.endDate, coverImageUrl: value.coverImageUrl ?? undefined, ratePerThousandViews: { minorUnits: value.rewardAmount, currency }, budget: { minorUnits: value.budgetAmount, currency }, budgetSpent: { minorUnits: 0, currency }, perCreatorCap: { minorUnits: value.maxRewardPerCreatorAmount ?? value.budgetAmount, currency }, status: value.status === 'PUBLISHED' ? 'live' : value.status === 'CLOSED' ? 'closed' : 'draft', brief: value.description, requirements: { hashtags: value.hashtags ?? [], mentions: value.mentions ?? [], contentRules: parseGuidelines(value.guidelines), disclosureRequired: true }, submissionCount: 0, referenceMaterials: (value.referenceMaterials ?? []).map((material, index) => ({ id: `${value.id}-${index}`, name: material.name, url: material.url })) };
+}
+
+interface BackendCampaignEarnings { currencyCode: string; creators: { creatorUserId: string; views: number; accruedMinor: number; paused: boolean; risk: string }[] }
+interface BackendTrackingResult { results: { outcome: { status: 'RECORDED' | 'UNAVAILABLE'; views?: number; message?: string } }[] }
+
+function withCreatorEarnings(submission: Submission, earnings: BackendCreatorCampaignEarnings[]): CreatorSubmission {
+  const entry = earnings.find((item) => item.campaignId === submission.campaignId);
+  const currency = entry?.currencyCode ?? 'USD';
+  const accrued = entry?.accruedMinor ?? 0;
+  const cap = entry?.capMinor ?? null;
+  return {
+    ...submission,
+    views: entry?.views ?? 0,
+    earning: { minorUnits: accrued, currency },
+    campaignTitle: entry?.campaignTitle ?? 'Campaign',
+    brandName: 'Brand',
+    cap: { minorUnits: cap ?? 0, currency },
+    capReached: cap !== null && accrued >= cap,
+    earningsPaused: entry?.paused ?? false,
+  };
+}
+
+function withEarnings(submission: Submission, creatorUserId: string, earnings: BackendCampaignEarnings): Submission {
+  const entry = earnings.creators.find((creator) => creator.creatorUserId === creatorUserId);
+  if (!entry) return submission;
+  return { ...submission, views: entry.views, earning: { minorUnits: entry.accruedMinor, currency: earnings.currencyCode }, earningsPaused: entry.paused, risk: entry.risk.toLowerCase() as Submission['risk'] };
+}
+
+function toTrackingOutcome(result: BackendTrackingResult): ViewTrackingOutcome {
+  const outcome = result.results[0]?.outcome;
+  if (outcome?.status === 'RECORDED') return { status: 'recorded', views: outcome.views };
+  return { status: 'unavailable', message: outcome?.message ?? 'Views could not be read.' };
 }
 
 function mapSubmission(value: BackendSubmission): Submission {
   const latest = value.revisions?.at(-1);
-  return { id: value.id, campaignId: value.campaignId, creatorHandle: value.creatorUserId, postUrl: latest?.contentUrl ?? '', kind: latest?.contentType === 'UPLOAD' ? 'upload' : 'link', views: 0, earning: ZERO_USD, status: value.status === 'APPROVED' ? 'approved' : value.status === 'REJECTED' ? 'rejected' : 'pending' };
+  const creator = value.creator;
+  return { id: value.id, campaignId: value.campaignId, creatorId: value.creatorUserId, creatorHandle: creator ? `@${creator.username}` : 'Creator', creatorName: creator?.displayName, creatorAvatarUrl: creator?.avatarUrl ?? undefined, accountVerified: value.accountVerified, postUrl: latest?.contentUrl ?? '', kind: latest?.contentType === 'UPLOAD' ? 'upload' : 'link', views: 0, earning: ZERO_USD, status: value.status === 'APPROVED' ? 'approved' : value.status === 'REJECTED' ? 'rejected' : 'pending' };
 }
 
-function mapCreatorProfile(value: BackendProfile): CreatorProfile {
-  return { username: value.username ?? '', handle: value.username ? `@${value.username}` : value.headline ?? value.displayName, avatarUrl: value.avatarUrl ?? undefined, displayName: value.displayName, bio: value.bio ?? '', categories: [], verification: value.verificationStatus === 'VERIFIED' ? 'verified' : value.verificationStatus === 'PENDING' ? 'pending' : 'unverified', socialAccounts: [], payoutConnected: false };
+function mapCreatorProfile(value: BackendProfile, accounts: BackendSocialAccount[] = []): CreatorProfile {
+  return { username: value.username ?? '', handle: value.username ? `@${value.username}` : value.headline ?? value.displayName, avatarUrl: value.avatarUrl ?? undefined, displayName: value.displayName, bio: value.bio ?? '', categories: [], verification: value.verificationStatus === 'VERIFIED' ? 'verified' : value.verificationStatus === 'PENDING' ? 'pending' : value.verificationStatus === 'REJECTED' ? 'rejected' : 'unverified', verificationNote: value.verificationNote ?? undefined, socialAccounts: accounts.map(mapSocialAccount), payoutConnected: false };
+}
+
+function pickNotificationPreferences(value: NotificationPreferences): NotificationPreferences {
+  return {
+    pushEnabled: value.pushEnabled,
+    submissionUpdates: value.submissionUpdates,
+    payoutUpdates: value.payoutUpdates,
+    campaignInvites: value.campaignInvites,
+    productNews: value.productNews,
+  };
+}
+
+interface BackendDispute {
+  id: string; subjectType: string; subjectId: string | null; subjectTitle: string; reason: string;
+  status: string; createdAt: string; openedByName: string;
+  events: { id: string; message: string; createdAt: string; author: 'YOU' | 'SUPPORT' | 'OTHER' }[];
+}
+interface BackendFraudCase {
+  id: string; campaignId: string; campaignTitle: string; creatorUserId: string; creatorName: string;
+  level: string; status: string; note: string | null; createdAt: string;
+}
+interface BackendReport {
+  campaignId: string; title: string; currencyCode: string; budgetMinor: number; fundedMinor: number;
+  spentMinor: number; totalViews: number; costPerThousandViewsMinor: number | null;
+  applications: { total: number; approved: number }; submissions: { total: number; approved: number };
+  topCreators: { creatorUserId: string; name: string; views: number; accruedMinor: number; paused: boolean }[];
+}
+
+const DISPUTE_STATUS: Record<string, Dispute['status']> = {
+  OPEN: 'open',
+  UNDER_REVIEW: 'in_review',
+  RESOLVED: 'upheld',
+  REJECTED: 'denied',
+};
+const FRAUD_STATUS: Record<string, FraudCase['status']> = {
+  OPEN: 'open',
+  RESOLVED: 'confirmed',
+  DISMISSED: 'cleared',
+};
+
+function mapDispute(value: BackendDispute): Dispute {
+  return {
+    id: value.id,
+    subjectType: value.subjectType.toLowerCase() as Dispute['subjectType'],
+    subjectId: value.subjectId ?? undefined,
+    title: value.subjectTitle,
+    status: DISPUTE_STATUS[value.status] ?? 'open',
+    reason: value.reason,
+    createdAt: value.createdAt,
+    openedByName: value.openedByName,
+    events: value.events.map((event) => ({
+      id: event.id,
+      author: event.author.toLowerCase() as DisputeEvent['author'],
+      message: event.message,
+      date: event.createdAt,
+    })),
+  };
+}
+
+function mapFraudCase(value: BackendFraudCase): FraudCase {
+  return {
+    id: value.id,
+    campaignId: value.campaignId,
+    campaignTitle: value.campaignTitle,
+    creatorId: value.creatorUserId,
+    creatorName: value.creatorName,
+    level: value.level.toLowerCase() as FraudCase['level'],
+    status: FRAUD_STATUS[value.status] ?? 'open',
+    note: value.note ?? undefined,
+    createdAt: value.createdAt,
+  };
+}
+
+function mapReport(value: BackendReport): CampaignReport {
+  const money = (minorUnits: number): Money => ({ minorUnits, currency: value.currencyCode });
+  return {
+    campaignId: value.campaignId,
+    title: value.title,
+    currency: value.currencyCode,
+    budget: money(value.budgetMinor),
+    funded: money(value.fundedMinor),
+    spent: money(value.spentMinor),
+    totalViews: value.totalViews,
+    costPerThousandViews:
+      value.costPerThousandViewsMinor === null ? undefined : money(value.costPerThousandViewsMinor),
+    applications: value.applications,
+    submissions: value.submissions,
+    topCreators: value.topCreators.map((creator) => ({
+      creatorId: creator.creatorUserId,
+      name: creator.name,
+      views: creator.views,
+      earned: money(creator.accruedMinor),
+      paused: creator.paused,
+    })),
+  };
+}
+
+function mapFunding(value: BackendFunding): CampaignFunding {
+  return {
+    fundingId: value.fundingId,
+    status: value.status === 'SUCCEEDED' ? 'succeeded' : value.status === 'FAILED' ? 'failed' : 'pending',
+    amount: { minorUnits: value.amountMinor, currency: value.currencyCode },
+    checkoutUrl: value.checkoutUrl ?? undefined,
+  };
+}
+
+function mapInvitation(value: BackendInvitation): CampaignInvitation {
+  return {
+    id: value.id,
+    campaignId: value.campaignId,
+    creatorId: value.creatorUserId,
+    name: value.creator?.displayName ?? 'Creator',
+    handle: value.creator ? `@${value.creator.username}` : '',
+    avatarUrl: value.creator?.avatarUrl ?? undefined,
+    status: value.status.toLowerCase() as CampaignInvitation['status'],
+  };
+}
+
+function mapSocialAccount(account: BackendSocialAccount): SocialAccount {
+  return { platform: platform(account.platform), handle: account.handle, connected: account.status === 'CONNECTED', verified: Boolean(account.verifiedAt), followers: 0 };
 }
 
 function platform(value: string): Campaign['platform'] { return value === 'INSTAGRAM' ? 'instagram' : value === 'SNAPCHAT' ? 'snapchat' : value === 'YOUTUBE' ? 'youtube' : 'tiktok'; }
 function describeCampaign(input: { brief: string; title: string }) { return input.brief || input.title; }
-function serializeGuidelines(requirements: CampaignRequirements) { return [...requirements.contentRules, ...requirements.hashtags, ...requirements.mentions].join('\n'); }
+function serializeGuidelines(requirements: CampaignRequirements) { return requirements.contentRules.join('\n'); }
 function parseGuidelines(value?: string | null) { return value?.split('\n').map((item) => item.trim()).filter(Boolean) ?? []; }
 function notificationType(value: string): 'campaign' | 'submission' | 'payout' | 'system' { return value.includes('SUBMISSION') ? 'submission' : value.includes('PAYOUT') ? 'payout' : value.includes('CAMPAIGN') ? 'campaign' : 'system'; }

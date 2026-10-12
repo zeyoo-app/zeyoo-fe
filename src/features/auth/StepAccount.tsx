@@ -6,8 +6,10 @@ import { isCompletePhone } from '@/shared/format/phone';
 
 import { AuthChannelSwitch } from './AuthChannelSwitch';
 import type { AuthChannel } from './channel';
+import { OrDivider } from './AuthShell';
 import { PhoneInput } from './PhoneInput';
 import { ROLE_OPTIONS } from './roleOptions';
+import { SocialAuthButtons } from './SocialAuthButtons';
 
 interface StepAccountProps {
   role: Role;
@@ -45,14 +47,21 @@ export function StepAccount({
         ariaLabel="Are you creating a Company or a Creator account?"
       />
 
+      <div className="flex flex-col gap-2.5">
+        <SocialAuthButtons role={role} />
+        <AuthChannelSwitch value={channel} onChange={onChannelChange} />
+      </div>
+
+      <OrDivider label="or" />
+
       {isPhone ? (
         <PhoneInput value={phone} onChange={onPhoneChange} />
       ) : (
         <Field
-          label="Work email"
+          label="Email"
           type="email"
           autoComplete="email"
-          placeholder="name@company.com"
+          placeholder="you@email.com"
           value={email}
           onChange={(event) => onEmailChange(event.target.value)}
         />
@@ -61,7 +70,6 @@ export function StepAccount({
       <Button disabled={!canContinue} onClick={onContinue}>
         Continue
       </Button>
-      <AuthChannelSwitch value={channel} onChange={onChannelChange} />
     </>
   );
 }

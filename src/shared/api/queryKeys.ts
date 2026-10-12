@@ -4,6 +4,9 @@ export const queryKeys = {
   brandCampaigns: ['brand', 'campaigns'] as const,
   campaign: (campaignId: string) => ['campaigns', campaignId] as const,
   campaignCategories: ['campaigns', 'categories'] as const,
+  campaignInvitations: (campaignId: string) => ['campaigns', campaignId, 'invitations'] as const,
+  campaignFraudCases: (campaignId: string) => ['campaigns', campaignId, 'fraud-cases'] as const,
+  campaignReport: (campaignId: string) => ['campaigns', campaignId, 'report'] as const,
   campaignSubmissions: (campaignId: string) => ['campaigns', campaignId, 'submissions'] as const,
   discoverCampaigns: ['discover', 'campaigns'] as const,
   mySubmissions: ['creator', 'submissions'] as const,
@@ -17,4 +20,5 @@ export const queryKeys = {
   notifications: ['notifications'] as const,
   notificationPreferences: ['notifications', 'preferences'] as const,
   disputes: ['disputes'] as const,
+  myFraudCases: ['creator', 'fraud-cases'] as const,
 };
