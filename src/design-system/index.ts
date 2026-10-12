@@ -23,6 +23,7 @@ export { Divider } from './ui/Divider';
 export { SelectField } from './ui/SelectField';
 export { ChoiceChips } from './ui/ChoiceChips';
 export type { Choice } from './ui/ChoiceChips';
+export { MultiChoiceChips } from './ui/MultiChoiceChips';
 export { ImageUpload } from './ui/ImageUpload';
 export type { PickedImage } from './ui/ImageUpload';
 export { ProgressBar } from './ui/ProgressBar';

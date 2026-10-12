@@ -18,6 +18,7 @@ import { useAuthStore } from '@/shared/auth';
 import { useBrandBilling } from '../earnings/hooks';
 
 import { useBrandProfile } from './hooks';
+import { useDeleteAccount } from './useDeleteAccount';
 
 /** Profile hub: brand identity, the account list, and sign-out pinned to the bottom. */
 export function BrandProfileScreen() {
@@ -27,6 +28,8 @@ export function BrandProfileScreen() {
   const confirm = useConfirm();
   const profile = useBrandProfile();
   const billing = useBrandBilling();
+
+  const deletion = useDeleteAccount();
 
   async function onSignOut() {
     const confirmed = await confirm({
@@ -115,6 +118,13 @@ export function BrandProfileScreen() {
               />
               <Divider />
               <ListRow
+                title="Disputes"
+                subtitle="Problems you have raised with support"
+                leading={<RowIcon icon={LifeBuoy} />}
+                onPress={() => router.push('/disputes')}
+              />
+              <Divider />
+              <ListRow
                 title="Help & support"
                 subtitle="Get help or contact us"
                 leading={<RowIcon icon={LifeBuoy} />}
@@ -128,6 +138,10 @@ export function BrandProfileScreen() {
       <div className="mt-auto pt-6">
         <Button variant="secondary" onClick={onSignOut}>
           Sign out
+        </Button>
+        {deletion.error ? <p className="mt-2 text-center text-xs text-danger">{deletion.error}</p> : null}
+        <Button variant="ghost" loading={deletion.isDeleting} onClick={deletion.requestDeletion}>
+          Delete account
         </Button>
       </div>
     </div>

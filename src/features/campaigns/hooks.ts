@@ -3,7 +3,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys, useApi } from '@/shared/api';
-import type { Campaign, CampaignStatus, CreateCampaignInput, InviteCreatorInput } from '@/shared/api';
+import type {
+  Campaign,
+  CampaignStatus,
+  CreateCampaignInput,
+  FlagCreatorInput,
+  InviteCreatorInput,
+} from '@/shared/api';
 
 export function useBrandDashboard() {
   const api = useApi();
@@ -46,6 +52,17 @@ export function useCreateCampaign() {
   });
 }
 
+/** Polls the latest funding attempt while a payment is being made on Stripe's page. */
+export function useCampaignFunding(campaignId: string, waiting: boolean) {
+  const api = useApi();
+  return useQuery({
+    queryKey: ['campaigns', campaignId, 'funding'],
+    queryFn: () => api.getCampaignFunding(campaignId),
+    enabled: waiting,
+    refetchInterval: waiting ? 3000 : false,
+  });
+}
+
 export function useFundCampaign() {
   const api = useApi();
   return useMutation({ mutationFn: api.fundCampaign });
@@ -68,7 +85,80 @@ export function useCreatorDirectory() {
   return useQuery({ queryKey: queryKeys.creatorDirectory, queryFn: () => api.getCreatorDirectory() });
 }
 
-export function useInviteCreator() {
+/** Everyone invited to a campaign so far, with where each invitation stands. */
+export function useCampaignInvitations(campaignId: string | undefined) {
   const api = useApi();
-  return useMutation({ mutationFn: (input: InviteCreatorInput) => api.inviteCreator(input) });
+  return useQuery({
+    queryKey: queryKeys.campaignInvitations(campaignId ?? ''),
+    queryFn: () => api.getCampaignInvitations(campaignId as string),
+    enabled: Boolean(campaignId),
+  });
+}
+
+export function useInviteCreator(campaignId: string | undefined) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Pick<InviteCreatorInput, 'creatorId' | 'email'>) =>
+      api.inviteCreator({ campaignId: campaignId as string, ...input }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaignInvitations(campaignId ?? '') });
+    },
+  });
+}
+
+export function useRevokeInvitation(campaignId: string | undefined) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (invitationId: string) =>
+      api.revokeInvitation({ campaignId: campaignId as string, invitationId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaignInvitations(campaignId ?? '') });
+    },
+  });
+}
+
+/** Fraud reviews opened on a campaign, newest first. */
+export function useCampaignFraudCases(campaignId: string) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.campaignFraudCases(campaignId),
+    queryFn: () => api.getCampaignFraudCases(campaignId),
+  });
+}
+
+function useRefreshAfterFraudChange(campaignId: string) {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.campaignFraudCases(campaignId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.campaignSubmissions(campaignId) });
+  };
+}
+
+export function useFlagCreator(campaignId: string) {
+  const api = useApi();
+  const refresh = useRefreshAfterFraudChange(campaignId);
+  return useMutation({
+    mutationFn: (input: Omit<FlagCreatorInput, 'campaignId'>) =>
+      api.flagCreator({ campaignId, ...input }),
+    onSuccess: refresh,
+  });
+}
+
+export function useCloseFraudCase(campaignId: string) {
+  const api = useApi();
+  const refresh = useRefreshAfterFraudChange(campaignId);
+  return useMutation({
+    mutationFn: (input: { caseId: string; action: 'confirm' | 'clear' }) => api.closeFraudCase(input),
+    onSuccess: refresh,
+  });
+}
+
+export function useCampaignReport(campaignId: string) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.campaignReport(campaignId),
+    queryFn: () => api.getCampaignReport(campaignId),
+  });
 }

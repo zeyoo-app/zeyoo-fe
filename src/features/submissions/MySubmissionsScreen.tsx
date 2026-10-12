@@ -7,7 +7,9 @@ import { AsyncContent, Badge, Button, Card, EmptyState, Modal, PageHeader, Texta
 import type { CreatorSubmission } from '@/shared/api';
 import { formatCount, formatMoney } from '@/shared/money/money';
 
-import { useMySubmissions, useOpenDispute } from './hooks';
+import { useOpenDispute } from '@/shared/disputes/hooks';
+import { useMyFraudCases } from '@/shared/fraud/hooks';
+import { useMySubmissions } from './hooks';
 
 const STATUS_TONE = { pending: 'warning', approved: 'success', rejected: 'danger' } as const;
 
@@ -42,6 +44,10 @@ export function MySubmissionsScreen() {
 function SubmissionRow({ submission }: { submission: CreatorSubmission }) {
   const router = useRouter();
   const dispute = useOpenDispute();
+  const fraudCases = useMyFraudCases();
+  const openReview = (fraudCases.data ?? []).find(
+    (item) => item.campaignId === submission.campaignId && item.status === 'open',
+  );
   const [appealing, setAppealing] = useState(false);
   const [reason, setReason] = useState('');
 
@@ -60,6 +66,35 @@ function SubmissionRow({ submission }: { submission: CreatorSubmission }) {
         <span className="font-numeric text-text">{formatMoney(submission.earning)}</span>
       </div>
 
+      {submission.earningsPaused ? (
+        <div className="mt-2 flex flex-col gap-2">
+          <p className="text-xs text-warning">
+            Earnings paused. The brand has this campaign under review, so new views are not being
+            added to your earnings. What you already earned is safe.
+            {openReview?.note ? ` Brand's note: ${openReview.note}` : ''}
+          </p>
+          {openReview ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              fullWidth={false}
+              loading={dispute.isPending}
+              onClick={() =>
+                dispute.mutate(
+                  {
+                    subjectType: 'fraud_case',
+                    subjectId: openReview.id,
+                    reason: `I disagree with the review on "${submission.campaignTitle}".`,
+                  },
+                  { onSuccess: (created) => router.push(`/disputes/${created.id}`) },
+                )
+              }
+            >
+              Dispute this review
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
       {submission.onHold ? (
         <p className="mt-2 text-xs text-warning">Payout on hold — {submission.holdReason}.</p>
       ) : null}
@@ -73,17 +108,18 @@ function SubmissionRow({ submission }: { submission: CreatorSubmission }) {
       ) : null}
 
       <Modal open={appealing} onClose={() => setAppealing(false)} title="Appeal this decision">
-        <p className="text-sm text-text-muted">Explain why this submission should be reconsidered.</p>
+        <p className="text-sm text-text-muted">
+          Explain why this submission met the brief. Zeyoo support reviews it and replies in the
+          dispute thread. If it is upheld, your submission is approved.
+        </p>
         <Textarea placeholder="Your appeal" value={reason} onChange={(event) => setReason(event.target.value)} />
         <Button
           disabled={reason.trim().length < 3 || dispute.isPending}
           loading={dispute.isPending}
           onClick={() =>
             dispute.mutate(
-              { submissionId: submission.id, reason: reason.trim() },
-              // Disputes and appeals live on one screen, so the appeal lands
-              // the creator there to watch its status — the only way in.
-              { onSuccess: () => router.replace('/creator/disputes') },
+              { subjectType: 'submission', subjectId: submission.id, reason: reason.trim() },
+              { onSuccess: (created) => router.replace(`/disputes/${created.id}`) },
             )
           }
         >

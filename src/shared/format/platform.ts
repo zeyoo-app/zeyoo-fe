@@ -16,5 +16,10 @@ export function platformLabel(platform: SocialPlatform): string {
   return LABELS[platform];
 }
 
+/** "Instagram, TikTok" — every platform a campaign accepts, in the order it was chosen. */
+export function platformsLabel(platforms: SocialPlatform[]): string {
+  return platforms.map(platformLabel).join(', ');
+}
+
 /** The order platforms are listed in wherever a creator picks or reviews them. */
 export const SOCIAL_PLATFORM_ORDER: SocialPlatform[] = ['instagram', 'tiktok', 'youtube', 'snapchat'];

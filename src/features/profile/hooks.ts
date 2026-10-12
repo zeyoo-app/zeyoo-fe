@@ -3,7 +3,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys, useApi } from '@/shared/api';
-import type { CreatorProfile, SocialPlatform, UpdateBrandProfileInput, UpdateProfileInput } from '@/shared/api';
+import type {
+  ConnectablePlatform,
+  CreatorProfile,
+  SocialPlatform,
+  UpdateBrandProfileInput,
+  UpdateProfileInput,
+} from '@/shared/api';
 
 export function useCreatorProfile() {
   const api = useApi();
@@ -40,6 +46,17 @@ export function useStartVerification() {
   const api = useApi();
   const cacheProfile = useCacheProfile();
   return useMutation({ mutationFn: () => api.startVerification(), onSuccess: cacheProfile });
+}
+
+/** Sends the creator to the platform's own sign-in page to authorise their account. */
+export function useStartPlatformConnection() {
+  const api = useApi();
+  return useMutation({
+    mutationFn: async (platform: ConnectablePlatform) => {
+      const { authorizationUrl } = await api.startPlatformConnection({ platform, client: 'web' });
+      window.location.assign(authorizationUrl);
+    },
+  });
 }
 
 export function useConnectSocial() {

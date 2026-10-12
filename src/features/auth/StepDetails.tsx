@@ -1,16 +1,12 @@
 'use client';
 
 import { Button, Field } from '@/design-system';
-import type { Role } from '@/shared/api';
 import { isCompletePhone } from '@/shared/format/phone';
 
-import { OrDivider } from './AuthShell';
 import { CHANNEL_NOUN, type AuthChannel } from './channel';
 import { PhoneInput } from './PhoneInput';
-import { SocialAuthButtons } from './SocialAuthButtons';
 
 interface StepDetailsProps {
-  role: Role;
   fullName: string;
   onFullNameChange: (value: string) => void;
   channel: AuthChannel;
@@ -28,7 +24,6 @@ interface StepDetailsProps {
  * itself is created only once that code is verified.
  */
 export function StepDetails({
-  role,
   fullName,
   onFullNameChange,
   channel,
@@ -46,10 +41,6 @@ export function StepDetails({
 
   return (
     <>
-      <SocialAuthButtons role={role} />
-
-      <OrDivider label={isPhone ? 'or continue with your phone' : 'or continue with work email'} />
-
       <div className="flex flex-col gap-1.5">
         <Field
           label="Full name"
@@ -65,10 +56,10 @@ export function StepDetails({
       ) : (
         <div className="flex flex-col gap-1.5">
           <Field
-            label="Work email"
+            label="Email"
             type="email"
             autoComplete="email"
-            placeholder="name@company.com"
+            placeholder="you@email.com"
             value={email}
             onChange={(event) => onEmailChange(event.target.value)}
           />
