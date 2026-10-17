@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import { Button, Field, SegmentedToggle } from '@/design-system';
@@ -12,6 +12,8 @@ import { AuthChannelSwitch } from './AuthChannelSwitch';
 import type { AuthChannel } from './channel';
 import { PhoneInput } from './PhoneInput';
 import { ROLE_OPTIONS } from './roleOptions';
+import { retryAfterSeconds } from './retryAfter';
+import { useCooldown } from './useCooldown';
 import { SocialAuthButtons } from './SocialAuthButtons';
 import { StepCode } from './StepCode';
 import { useSignIn } from './hooks';
@@ -39,13 +41,24 @@ export function SignInScreen() {
   const [role, setRole] = useState<Role>('creator');
   const [awaitingCode, setAwaitingCode] = useState(false);
 
+  const { remaining, start } = useCooldown();
+  const waitSeconds = retryAfterSeconds(error);
+  useEffect(() => {
+    if (waitSeconds !== null) start(waitSeconds);
+  }, [waitSeconds, start, error]);
+  // While the server is making us wait, show the live countdown instead of the frozen message.
+  const identifierError =
+    waitSeconds === null
+      ? error
+      : remaining > 0
+        ? `Please wait ${remaining} ${remaining === 1 ? 'second' : 'seconds'} before requesting another code.`
+        : null;
+
   const isPhone = channel === 'phone';
   const canContinue = isPhone ? isCompletePhone(phone) : email.includes('@');
 
   async function submitIdentifier() {
-    const sent = isPhone
-      ? await requestPhoneCode(normalizePhone(phone))
-      : await requestCode(email.trim());
+    const sent = isPhone ? await requestPhoneCode(normalizePhone(phone)) : await requestCode(email.trim());
     if (sent) setAwaitingCode(true);
   }
 
@@ -62,8 +75,8 @@ export function SignInScreen() {
             Verify your {isPhone ? 'phone number' : 'email'}
           </h1>
           <p className="text-[15px] text-text-muted">
-            {notice ?? `We sent a 6-digit code to ${isPhone ? normalizePhone(phone) : email.trim()}.`}{' '}
-            Enter it below.
+            {notice ?? `We sent a 6-digit code to ${isPhone ? normalizePhone(phone) : email.trim()}.`} Enter
+            it below.
           </p>
         </div>
       ) : (
@@ -80,9 +93,7 @@ export function SignInScreen() {
           }
           isPending={isPending}
           error={error}
-          onResend={() =>
-            isPhone ? resendPhoneCode(normalizePhone(phone)) : resend(email.trim())
-          }
+          onResend={() => (isPhone ? resendPhoneCode(normalizePhone(phone)) : resend(email.trim()))}
           onUseDifferentIdentifier={() => setAwaitingCode(false)}
         />
       ) : (
@@ -102,7 +113,7 @@ export function SignInScreen() {
           <OrDivider label="or" />
 
           {isPhone ? (
-            <PhoneInput value={phone} onChange={setPhone} error={error} />
+            <PhoneInput value={phone} onChange={setPhone} error={identifierError} />
           ) : (
             <Field
               label="Email"
@@ -111,13 +122,13 @@ export function SignInScreen() {
               placeholder="you@email.com"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              error={error ?? undefined}
+              error={identifierError ?? undefined}
             />
           )}
 
           <Button
             loading={isPending}
-            disabled={!canContinue || isPending}
+            disabled={!canContinue || isPending || remaining > 0}
             onClick={submitIdentifier}
           >
             Continue

@@ -56,9 +56,18 @@ function WalletBody({ wallet }: { wallet: WalletSummary }) {
             Withdraw
           </Button>
         ) : (
-          <Button fullWidth={false} loading={connect.isPending} onClick={() => connect.mutate()}>
-            Connect payouts to withdraw
-          </Button>
+          <div className="flex flex-col items-start gap-2">
+            <Button fullWidth={false} loading={connect.isPending} onClick={() => connect.mutate()}>
+              Connect payouts to withdraw
+            </Button>
+            {connect.error ? (
+              <p className="text-xs text-danger">
+                {connect.error instanceof Error
+                  ? connect.error.message
+                  : 'Could not start payout setup. Please try again.'}
+              </p>
+            ) : null}
+          </div>
         )}
       </div>
 
