@@ -44,6 +44,13 @@ export function PayoutMethodScreen() {
             >
               {data.payoutConnected ? 'Connected' : 'Connect payouts'}
             </Button>
+            {connect.error ? (
+              <p className="text-xs text-danger">
+                {connect.error instanceof Error
+                  ? connect.error.message
+                  : 'Could not start payout setup. Please try again.'}
+              </p>
+            ) : null}
 
             <p className="text-xs text-text-muted">
               Account details are held and processed by our payout provider. Zeyoo never stores your full

@@ -144,7 +144,15 @@ function Footer() {
   return (
     <footer className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-6 py-10 text-center sm:flex-row sm:justify-between">
       <Logo height={22} />
-      <p className="text-xs text-text-tertiary">© {new Date().getFullYear()} Zeyoo. All rights reserved.</p>
+      <div className="flex items-center gap-4 text-xs text-text-tertiary">
+        <Link href="/privacy" className="hover:text-text">
+          Privacy
+        </Link>
+        <Link href="/terms-of-service" className="hover:text-text">
+          Terms
+        </Link>
+        <span>© {new Date().getFullYear()} Zeyoo. All rights reserved.</span>
+      </div>
     </footer>
   );
 }
