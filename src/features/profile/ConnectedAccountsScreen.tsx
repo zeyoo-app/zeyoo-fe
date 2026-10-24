@@ -4,6 +4,7 @@ import { AsyncContent, Badge, Button, Divider } from '@/design-system';
 import { DetailShell } from '@/shared/shell';
 
 import { useConnectSocial, useCreatorProfile, useStartPlatformConnection } from './hooks';
+import { SocialPlatformIcon } from './SocialPlatformIcon';
 import { SOCIAL_PLATFORMS } from './socialPlatforms';
 
 /** Instagram and TikTok are authorised on the platform itself; the rest take a handle. */
@@ -47,7 +48,10 @@ export function ConnectedAccountsScreen() {
               return (
                 <div key={account.platform}>
                   <div className="flex min-h-[72px] items-center justify-between gap-3">
-                    <p className="font-display text-base font-semibold text-text">{account.label}</p>
+                    <div className="flex items-center gap-3">
+                      <SocialPlatformIcon platform={account.platform} />
+                      <p className="font-display text-base font-semibold text-text">{account.label}</p>
+                    </div>
                     {settled ? (
                       <Badge tone="success">{linked.verified ? 'Verified' : 'Connected'}</Badge>
                     ) : (
