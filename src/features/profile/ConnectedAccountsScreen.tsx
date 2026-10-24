@@ -39,6 +39,11 @@ export function ConnectedAccountsScreen() {
               const oauth = isOAuthPlatform(account.platform);
               // A handle typed in is only a claim; signing in to the platform verifies it.
               const settled = linked && (linked.verified || !oauth);
+              const anyPending = connect.isPending || startConnection.isPending;
+              // Only the clicked row spins; the others are held until it finishes.
+              const pending =
+                (connect.isPending && connect.variables === account.platform) ||
+                (startConnection.isPending && startConnection.variables === account.platform);
               return (
                 <div key={account.platform}>
                   <div className="flex min-h-[72px] items-center justify-between gap-3">
@@ -50,7 +55,8 @@ export function ConnectedAccountsScreen() {
                         size="sm"
                         variant="secondary"
                         fullWidth={false}
-                        loading={connect.isPending || startConnection.isPending}
+                        loading={pending}
+                        disabled={anyPending && !pending}
                         onClick={() =>
                           isOAuthPlatform(account.platform)
                             ? startConnection.mutate(account.platform)
