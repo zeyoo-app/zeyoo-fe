@@ -67,7 +67,7 @@ export function ConnectedAccountsScreen() {
                             : connect.mutate(account.platform)
                         }
                       >
-                        {linked ? 'Verify' : 'Connect'}
+                        Connect
                       </Button>
                     )}
                   </div>
