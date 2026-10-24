@@ -198,7 +198,7 @@ export interface ReviewSubmissionInput {
 }
 
 /** Platforms a creator authorises through the platform's own OAuth screen. */
-export type ConnectablePlatform = 'instagram' | 'tiktok';
+export type ConnectablePlatform = 'instagram' | 'tiktok' | 'youtube' | 'snapchat';
 
 export interface RecordViewsInput {
   submissionId: string;

@@ -8,7 +8,7 @@ import { SocialPlatformIcon } from './SocialPlatformIcon';
 import { SOCIAL_PLATFORMS } from './socialPlatforms';
 
 /** Instagram and TikTok are authorised on the platform itself; the rest take a handle. */
-const OAUTH_PLATFORMS = ['instagram', 'tiktok'] as const;
+const OAUTH_PLATFORMS = ['instagram', 'tiktok', 'youtube', 'snapchat'] as const;
 
 function isOAuthPlatform(platform: string): platform is (typeof OAUTH_PLATFORMS)[number] {
   return (OAUTH_PLATFORMS as readonly string[]).includes(platform);

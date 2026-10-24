@@ -57,7 +57,7 @@ interface BackendCreatorCampaignEarnings { campaignId: string; campaignTitle: st
 const ZERO_USD: Money = { minorUnits: 0, currency: 'USD' };
 
 /** Platforms the backend only connects through the platform's own sign-in, never a typed handle. */
-const VERIFIED_ONLY_PLATFORMS: readonly string[] = ['instagram', 'tiktok'];
+const VERIFIED_ONLY_PLATFORMS: readonly string[] = ['instagram', 'tiktok', 'youtube', 'snapchat'];
 
 export function createBackendApi(baseUrl: string): ZeyooApi {
   const root = baseUrl.replace(/\/$/, '');
