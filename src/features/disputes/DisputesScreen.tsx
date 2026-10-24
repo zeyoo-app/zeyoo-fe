@@ -24,7 +24,7 @@ export function DisputesScreen() {
       />
       <div className="mb-4">
         <Button fullWidth={false} onClick={() => setLogging(true)}>
-          Log a dispute
+          Open a dispute
         </Button>
       </div>
       <AsyncContent isLoading={query.isLoading} isError={query.isError} data={query.data}>
@@ -44,7 +44,7 @@ export function DisputesScreen() {
         }
       </AsyncContent>
 
-      <Modal open={logging} onClose={() => setLogging(false)} title="Log a dispute">
+      <Modal open={logging} onClose={() => setLogging(false)} title="Open a dispute">
         <p className="text-sm text-text-muted">
           Describe the problem and support will reply in the dispute thread. To appeal a rejected
           submission, use Appeal on that submission so it is linked to it.
