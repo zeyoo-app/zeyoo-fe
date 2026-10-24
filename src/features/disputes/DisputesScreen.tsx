@@ -1,14 +1,20 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
-import { AsyncContent, Badge, Card, EmptyState, PageHeader } from '@/design-system';
+import { AsyncContent, Badge, Button, Card, EmptyState, Modal, PageHeader, Textarea } from '@/design-system';
 import type { Dispute } from '@/shared/api';
-import { useDisputes } from '@/shared/disputes/hooks';
+import { useDisputes, useOpenDispute } from '@/shared/disputes/hooks';
 import { disputeStatusPresentation, disputeSubjectLabel } from '@/shared/disputes/presentation';
 
 export function DisputesScreen() {
   const query = useDisputes();
+  const router = useRouter();
+  const openDispute = useOpenDispute();
+  const [logging, setLogging] = useState(false);
+  const [reason, setReason] = useState('');
 
   return (
     <>
@@ -16,6 +22,11 @@ export function DisputesScreen() {
         title="Disputes"
         subtitle="Appeals and problems you have raised, and where each one stands."
       />
+      <div className="mb-4">
+        <Button fullWidth={false} onClick={() => setLogging(true)}>
+          Log a dispute
+        </Button>
+      </div>
       <AsyncContent isLoading={query.isLoading} isError={query.isError} data={query.data}>
         {(disputes) =>
           disputes.length === 0 ? (
@@ -32,6 +43,37 @@ export function DisputesScreen() {
           )
         }
       </AsyncContent>
+
+      <Modal open={logging} onClose={() => setLogging(false)} title="Log a dispute">
+        <p className="text-sm text-text-muted">
+          Describe the problem and support will reply in the dispute thread. To appeal a rejected
+          submission, use Appeal on that submission so it is linked to it.
+        </p>
+        <Textarea placeholder="What happened?" value={reason} onChange={(event) => setReason(event.target.value)} />
+        {openDispute.error ? (
+          <p className="text-xs text-danger">
+            {openDispute.error instanceof Error ? openDispute.error.message : 'Could not open the dispute.'}
+          </p>
+        ) : null}
+        <Button
+          disabled={reason.trim().length < 5}
+          loading={openDispute.isPending}
+          onClick={() =>
+            openDispute.mutate(
+              { subjectType: 'other', reason: reason.trim() },
+              {
+                onSuccess: (dispute) => {
+                  setLogging(false);
+                  setReason('');
+                  router.push(`/disputes/${dispute.id}`);
+                },
+              },
+            )
+          }
+        >
+          Send to support
+        </Button>
+      </Modal>
     </>
   );
 }
