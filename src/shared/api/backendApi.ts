@@ -56,6 +56,9 @@ interface BackendCreatorCampaignEarnings { campaignId: string; campaignTitle: st
 
 const ZERO_USD: Money = { minorUnits: 0, currency: 'USD' };
 
+/** Platforms the backend only connects through the platform's own sign-in, never a typed handle. */
+const VERIFIED_ONLY_PLATFORMS: readonly string[] = ['instagram', 'tiktok'];
+
 export function createBackendApi(baseUrl: string): ZeyooApi {
   const root = baseUrl.replace(/\/$/, '');
 
@@ -188,7 +191,7 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
     },
     async setupCreator(input) {
       await request('POST', '/creator-profile', { displayName: input.displayName, username: input.username, avatarUrl: await hostedImageUrl(input.avatarUrl) });
-      await Promise.all(input.platforms.map((platform) => request('POST', '/creator-profile/social-accounts', { platform: platform.toUpperCase(), handle: `@${input.username}` })));
+      await Promise.all(input.platforms.filter((platform) => !VERIFIED_ONLY_PLATFORMS.includes(platform)).map((platform) => request('POST', '/creator-profile/social-accounts', { platform: platform.toUpperCase(), handle: `@${input.username}` })));
       return mapSession(await request<BackendAccount>('GET', '/me'));
     },
     async getBrandDashboard() {
