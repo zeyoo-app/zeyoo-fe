@@ -25,19 +25,19 @@ const FEATURES = [
 
 function Nav() {
   return (
-    <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-      <Logo height={26} />
-      <div className="flex items-center gap-2">
+    <nav className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-4 sm:px-6 sm:py-5">
+      <Logo height={24} />
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         <LandingThemeSwitch />
         <Link
           href="/sign-in"
-          className="rounded-xl px-4 py-2 text-sm font-medium text-text hover:bg-surface-hover"
+          className="whitespace-nowrap rounded-xl px-3 py-2 text-sm font-medium text-text hover:bg-surface-hover sm:px-4"
         >
           Sign in
         </Link>
         <Link
           href="/sign-up"
-          className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover"
+          className="whitespace-nowrap rounded-xl bg-primary px-3 py-2 text-sm font-medium text-on-primary hover:bg-primary-hover sm:px-4"
         >
           Get started
         </Link>

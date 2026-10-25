@@ -19,10 +19,14 @@ export function LandingThemeSwitch() {
       onClick={toggleTheme}
       className="group inline-flex h-10 items-center gap-2 rounded-xl px-2 text-text-muted transition-colors hover:bg-surface-hover hover:text-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
-      <Sun className={cn('size-4 transition-colors', !dark && 'text-text')} aria-hidden />
+      {/* Phones: one icon showing the mode you would switch to. Wider screens: the full switch. */}
+      <span className="sm:hidden" aria-hidden>
+        {dark ? <Sun className="size-5 text-text" /> : <Moon className="size-5 text-text" />}
+      </span>
+      <Sun className={cn('hidden size-4 transition-colors sm:block', !dark && 'text-text')} aria-hidden />
       <span
         className={cn(
-          'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors',
+          'relative hidden sm:inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors',
           dark ? 'bg-primary' : 'bg-surface-hover ring-1 ring-border',
         )}
       >
@@ -33,7 +37,7 @@ export function LandingThemeSwitch() {
           )}
         />
       </span>
-      <Moon className={cn('size-4 transition-colors', dark && 'text-primary')} aria-hidden />
+      <Moon className={cn('hidden size-4 transition-colors sm:block', dark && 'text-primary')} aria-hidden />
     </button>
   );
 }
