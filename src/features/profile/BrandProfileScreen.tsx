@@ -118,6 +118,13 @@ export function BrandProfileScreen() {
               />
               <Divider />
               <ListRow
+                title="Campaign Rules"
+                subtitle="What creators and brands agree to"
+                leading={<RowIcon icon={FileText} />}
+                onPress={() => router.push('/campaign-rules')}
+              />
+              <Divider />
+              <ListRow
                 title="Disputes"
                 subtitle="Problems you have raised with support"
                 leading={<RowIcon icon={LifeBuoy} />}

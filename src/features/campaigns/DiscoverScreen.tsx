@@ -7,6 +7,7 @@ import { NotificationBell } from '@/features/notifications/NotificationBell';
 
 import { CampaignCard } from './CampaignCard';
 import { useDiscoverCampaigns } from './hooks';
+import { InvitationsSection } from './InvitationsSection';
 
 export function DiscoverScreen() {
   const query = useDiscoverCampaigns();
@@ -15,6 +16,8 @@ export function DiscoverScreen() {
   return (
     <>
       <PageHeader title="Discover" subtitle="Fresh campaigns picked for you." action={<NotificationBell />} />
+
+      <InvitationsSection />
 
       <div className="mb-5 max-w-md">
         <Field

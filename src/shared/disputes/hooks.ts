@@ -85,3 +85,13 @@ export function useAdminCloseFraudCase() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'fraud'] }),
   });
 }
+
+/** Escalate a dispute support has not answered within its response time. */
+export function useEscalateDispute(disputeId: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.escalateDispute(disputeId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.disputes }),
+  });
+}

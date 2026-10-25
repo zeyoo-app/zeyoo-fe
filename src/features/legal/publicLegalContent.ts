@@ -170,3 +170,69 @@ export const TERMS_OF_SERVICE: PublicLegalDocument = {
     },
   ],
 };
+
+export const CAMPAIGN_RULES: PublicLegalDocument = {
+  title: 'Campaign Rules',
+  description: 'What every creator accepts when applying to a Zeyoo campaign, and what brands agree to.',
+  lastUpdated: 'Last updated: October 2026',
+  intro:
+    'These rules apply to every Zeyoo campaign. Applying to a campaign means you accept them, together with that campaign’s own brief, requirements and reward terms.',
+  sections: [
+    {
+      heading: '1. Applying and taking part',
+      paragraphs: [
+        'Apply only to campaigns you intend to complete, from an account you own.',
+        'A brand may approve or decline any application. You can submit content only once approved.',
+        'Private campaigns are open only to creators the brand invited.',
+      ],
+    },
+    {
+      heading: '2. Your content',
+      paragraphs: [
+        'Follow the campaign brief, required hashtags and mentions, and any content guidelines.',
+        'Post original content you have the rights to. No copied, stolen or AI-faked footage of real people.',
+        'Label paid content as an advertisement or paid partnership where the campaign or the law requires it.',
+        'Keep the post live for the whole campaign; removing it early can cancel earnings for it.',
+      ],
+    },
+    {
+      heading: '3. Reviews and changes',
+      paragraphs: [
+        'The brand reviews every submission and may approve it, reject it with a reason, or ask for changes.',
+        'When changes are requested, submit a revised post from the campaign page.',
+        'If you think a decision is unfair, appeal it from My Submissions. Support responds within 2 business days.',
+      ],
+    },
+    {
+      heading: '4. Earnings',
+      paragraphs: [
+        'You earn on the reward terms shown on the campaign when you submitted, up to the per-creator cap and while the budget lasts.',
+        'Only genuine views count. Bots, purchased views, engagement pods and repeat-view schemes are not paid.',
+        'Earnings can be held while suspicious activity is reviewed. You will be told why and can dispute the review.',
+      ],
+    },
+    {
+      heading: '5. Withdrawals',
+      paragraphs: [
+        'Connect a payout account and verify your identity with our payment provider before withdrawing.',
+        'Withdrawals are reviewed and may be held for checks before they are paid.',
+      ],
+    },
+    {
+      heading: '6. Brands',
+      paragraphs: [
+        'Fund a campaign before it goes live, and describe the brief and reward terms accurately.',
+        'Review applications and submissions promptly and give a reason when you reject.',
+        'Use approved content only as described in the campaign.',
+      ],
+    },
+    {
+      heading: '7. Breaking the rules',
+      paragraphs: [
+        'We may remove content, cancel earnings, hold payouts or suspend accounts that break these rules.',
+        'Every decision can be disputed from the Disputes page.',
+        `Questions about these rules: ${CONTACT}.`,
+      ],
+    },
+  ],
+};

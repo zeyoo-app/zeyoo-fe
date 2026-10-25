@@ -2,6 +2,9 @@ import { SESSION_EXPIRED_EVENT } from '../auth/sessionEvents';
 import type { Money } from '../money/money';
 import type { ZeyooApi } from './ZeyooApi';
 import type {
+  CampaignApplication,
+  CreatorInvitation,
+  MyApplication,
   CodeSent,
   Campaign,
   CampaignCategory,
@@ -44,6 +47,7 @@ interface BackendProfile { displayName: string; username?: string; avatarUrl?: s
 interface BackendSubmission {
   id: string; campaignId: string; status: string; creatorUserId: string;
   revisions?: { contentType: string; contentUrl: string }[];
+  reviews?: { decision: string; note: string | null; createdAt: string }[];
   creator?: { displayName: string; username: string; avatarUrl: string | null } | null;
   accountVerified?: boolean;
 }
@@ -243,7 +247,7 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
     async syncSubmissionViews(submissionId) {
       return toTrackingOutcome(await request<BackendTrackingResult>('POST', `/submissions/${submissionId}/views/sync`));
     },
-    async reviewSubmission({ submissionId, decision, reason }) { return mapSubmission(await request<BackendSubmission>('POST', `/submissions/${submissionId}/review`, { decision: decision === 'approve' ? 'APPROVED' : 'REJECTED', note: reason })); },
+    async reviewSubmission({ submissionId, decision, reason }) { return mapSubmission(await request<BackendSubmission>('POST', `/submissions/${submissionId}/review`, { decision: REVIEW_DECISION[decision], note: reason })); },
     async getMySubmissions() {
       const [submissions, earnings] = await Promise.all([
         request<BackendSubmission[]>('GET', '/me/submissions'),
@@ -252,6 +256,14 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       return submissions.map((submission) => withCreatorEarnings(mapSubmission(submission), earnings));
     },
     async submitParticipation({ campaignId, postUrl, kind }) { return { ...mapSubmission(await request<BackendSubmission>('POST', `/campaigns/${campaignId}/submissions`, { contentType: kind.toUpperCase(), contentUrl: postUrl })), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false }; },
+    async resubmitSubmission({ submissionId, postUrl, kind }) { return { ...mapSubmission(await request<BackendSubmission>('POST', `/submissions/${submissionId}/revisions`, { contentType: kind.toUpperCase(), contentUrl: postUrl })), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false }; },
+    async getMyApplications() { return (await request<BackendApplication[]>('GET', '/me/applications')).map(mapMyApplication); },
+    async applyToCampaign({ campaignId, message }) { return mapMyApplication(await request<BackendApplication>('POST', `/campaigns/${campaignId}/applications`, { acceptedTerms: true, message: message?.trim() || undefined })); },
+    async withdrawApplication(applicationId) { await request('POST', `/applications/${applicationId}/withdraw`); },
+    async getCampaignApplications(campaignId) { return (await request<BackendApplication[]>('GET', `/campaigns/${campaignId}/applications`)).map(mapCampaignApplication); },
+    async reviewApplication({ applicationId, approve }) { await request('POST', `/applications/${applicationId}/${approve ? 'approve' : 'decline'}`); },
+    async getMyInvitations() { return (await request<BackendCreatorInvitation[]>('GET', '/me/invitations')).map(mapCreatorInvitation); },
+    async declineInvitation(invitationId) { await request('POST', `/me/invitations/${invitationId}/decline`); },
     async getBrandProfile() {
       const id = await currentOrganizationId();
       const [organization, team] = await Promise.all([
@@ -305,6 +317,7 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
     async setBillingPlan(plan) { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/subscription/checkout`, { planKey: plan.toLowerCase() }); },
     async setBrandPaymentMethod() { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/payment-methods`); },
     async getDisputes() { return (await request<BackendDispute[]>('GET', '/disputes')).map(mapDispute); },
+    async escalateDispute(disputeId) { return mapDispute(await request<BackendDispute>('POST', `/disputes/${disputeId}/escalate`)); },
     async getDispute(disputeId) { return mapDispute(await request<BackendDispute>('GET', `/disputes/${disputeId}`)); },
     async openDispute(input) {
       return mapDispute(await request<BackendDispute>('POST', '/disputes', { subjectType: input.subjectType.toUpperCase(), subjectId: input.subjectId, reason: input.reason }));
@@ -445,7 +458,15 @@ function toTrackingOutcome(result: BackendTrackingResult): ViewTrackingOutcome {
 function mapSubmission(value: BackendSubmission): Submission {
   const latest = value.revisions?.at(-1);
   const creator = value.creator;
-  return { id: value.id, campaignId: value.campaignId, creatorId: value.creatorUserId, creatorHandle: creator ? `@${creator.username}` : 'Creator', creatorName: creator?.displayName, creatorAvatarUrl: creator?.avatarUrl ?? undefined, accountVerified: value.accountVerified, postUrl: latest?.contentUrl ?? '', kind: latest?.contentType === 'UPLOAD' ? 'upload' : 'link', views: 0, earning: ZERO_USD, status: value.status === 'APPROVED' ? 'approved' : value.status === 'REJECTED' ? 'rejected' : 'pending' };
+  return { id: value.id, campaignId: value.campaignId, creatorId: value.creatorUserId, creatorHandle: creator ? `@${creator.username}` : 'Creator', creatorName: creator?.displayName, creatorAvatarUrl: creator?.avatarUrl ?? undefined, accountVerified: value.accountVerified, postUrl: latest?.contentUrl ?? '', kind: latest?.contentType === 'UPLOAD' ? 'upload' : 'link', views: 0, earning: ZERO_USD, status: value.status === 'APPROVED' ? 'approved' : value.status === 'REJECTED' ? 'rejected' : value.status === 'NEEDS_CHANGES' ? 'needs_changes' : 'pending', ...reviewNotes(value) };
+}
+
+/** The brand's note on the latest review, shown to the creator as the reason or the change request. */
+function reviewNotes(value: BackendSubmission): Pick<Submission, 'rejectionReason' | 'changeRequest'> {
+  const note = value.reviews?.at(-1)?.note ?? undefined;
+  if (value.status === 'REJECTED') return { rejectionReason: note };
+  if (value.status === 'NEEDS_CHANGES') return { changeRequest: note };
+  return {};
 }
 
 function mapCreatorProfile(value: BackendProfile, accounts: BackendSocialAccount[] = []): CreatorProfile {
@@ -455,6 +476,7 @@ function mapCreatorProfile(value: BackendProfile, accounts: BackendSocialAccount
 function pickNotificationPreferences(value: NotificationPreferences): NotificationPreferences {
   return {
     pushEnabled: value.pushEnabled,
+    emailEnabled: value.emailEnabled,
     submissionUpdates: value.submissionUpdates,
     payoutUpdates: value.payoutUpdates,
     campaignInvites: value.campaignInvites,
@@ -465,7 +487,18 @@ function pickNotificationPreferences(value: NotificationPreferences): Notificati
 interface BackendDispute {
   id: string; subjectType: string; subjectId: string | null; subjectTitle: string; reason: string;
   status: string; createdAt: string; openedByName: string;
+  responseDueAt: string; escalatedAt: string | null; overdue: boolean; canEscalate: boolean;
   events: { id: string; message: string; createdAt: string; author: 'YOU' | 'SUPPORT' | 'OTHER' }[];
+}
+interface BackendApplication {
+  id: string; campaignId: string; creatorUserId: string; status: string; source: string;
+  message: string | null; createdAt: string;
+  campaign?: { title: string };
+  creator?: { displayName: string; username: string; avatarUrl: string | null } | null;
+}
+interface BackendCreatorInvitation {
+  id: string; campaignId: string; createdAt: string;
+  campaign: { title: string; platform: string };
 }
 interface BackendFraudCase {
   id: string; campaignId: string; campaignTitle: string; creatorUserId: string; creatorName: string;
@@ -477,6 +510,8 @@ interface BackendReport {
   applications: { total: number; approved: number }; submissions: { total: number; approved: number };
   topCreators: { creatorUserId: string; name: string; views: number; accruedMinor: number; paused: boolean }[];
 }
+
+const REVIEW_DECISION = { approve: 'APPROVED', reject: 'REJECTED', request_changes: 'CHANGES_REQUESTED' } as const;
 
 const DISPUTE_STATUS: Record<string, Dispute['status']> = {
   OPEN: 'open',
@@ -500,6 +535,10 @@ function mapDispute(value: BackendDispute): Dispute {
     reason: value.reason,
     createdAt: value.createdAt,
     openedByName: value.openedByName,
+    responseDueAt: value.responseDueAt,
+    escalatedAt: value.escalatedAt ?? undefined,
+    overdue: value.overdue,
+    canEscalate: value.canEscalate,
     events: value.events.map((event) => ({
       id: event.id,
       author: event.author.toLowerCase() as DisputeEvent['author'],
@@ -553,6 +592,42 @@ function mapFunding(value: BackendFunding): CampaignFunding {
     status: value.status === 'SUCCEEDED' ? 'succeeded' : value.status === 'FAILED' ? 'failed' : 'pending',
     amount: { minorUnits: value.amountMinor, currency: value.currencyCode },
     checkoutUrl: value.checkoutUrl ?? undefined,
+  };
+}
+
+function mapMyApplication(value: BackendApplication): MyApplication {
+  return {
+    id: value.id,
+    campaignId: value.campaignId,
+    campaignTitle: value.campaign?.title ?? 'Campaign',
+    status: value.status.toLowerCase() as MyApplication['status'],
+    fromInvitation: value.source === 'INVITATION',
+    message: value.message ?? undefined,
+    createdAt: value.createdAt,
+  };
+}
+
+function mapCampaignApplication(value: BackendApplication): CampaignApplication {
+  return {
+    id: value.id,
+    creatorId: value.creatorUserId,
+    creatorName: value.creator?.displayName ?? 'Creator',
+    creatorHandle: value.creator ? `@${value.creator.username}` : '',
+    creatorAvatarUrl: value.creator?.avatarUrl ?? undefined,
+    status: value.status.toLowerCase() as CampaignApplication['status'],
+    fromInvitation: value.source === 'INVITATION',
+    message: value.message ?? undefined,
+    createdAt: value.createdAt,
+  };
+}
+
+function mapCreatorInvitation(value: BackendCreatorInvitation): CreatorInvitation {
+  return {
+    id: value.id,
+    campaignId: value.campaignId,
+    campaignTitle: value.campaign.title,
+    platform: value.campaign.platform.toLowerCase() as CreatorInvitation['platform'],
+    createdAt: value.createdAt,
   };
 }
 
