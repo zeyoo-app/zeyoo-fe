@@ -30,7 +30,7 @@ export function TeamScreen() {
           return (
             <div className="flex flex-col gap-4">
               {isOwner ? <InviteCard /> : null}
-              <Card className="flex flex-col divide-y divide-border px-5 py-0">
+              <Card className="flex min-w-0 flex-col divide-y divide-border px-4 py-0 sm:px-5">
                 {data.teamMembers.map((member) => (
                   <TeamRow key={member.id} member={member} isYou={member.userId === userId} canManage={isOwner} />
                 ))}
@@ -52,7 +52,7 @@ function InviteCard() {
   const valid = /^\S+@\S+\.\S+$/.test(email.trim());
 
   return (
-    <Card className="flex flex-col gap-3">
+    <Card className="flex min-w-0 flex-col gap-3">
       <div>
         <p className="font-display text-base font-semibold text-text">Invite a teammate</p>
         <p className="text-xs text-text-muted">They get an email and can sign in with that address straight away.</p>
@@ -125,17 +125,19 @@ function TeamRow({ member, isYou, canManage }: { member: TeamMember; isYou: bool
   }
 
   return (
-    <div className="flex flex-col gap-2 py-3">
-      <div className="flex items-center gap-3">
+    <div className="flex min-w-0 flex-col gap-2 py-3">
+      <div className="flex min-w-0 items-center gap-3">
         <Avatar name={member.name} size={40} />
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] text-text">
-            {member.name}
-            {isYou ? ' (you)' : ''}
+          <p className="flex min-w-0 gap-1 text-[15px] text-text">
+            <span className="truncate">{member.name}</span>
+            {isYou ? <span className="shrink-0 text-text-muted">(you)</span> : null}
           </p>
           <p className="truncate text-xs text-text-muted">{member.email}</p>
         </div>
-        <Badge tone={member.role === 'Owner' ? 'success' : 'neutral'}>{member.role}</Badge>
+        <Badge tone={member.role === 'Owner' ? 'success' : 'neutral'} className="shrink-0">
+          {member.role}
+        </Badge>
       </div>
       {canManage ? (
         <div className="flex gap-2">
