@@ -128,22 +128,20 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
         <ProgressBar value={spentRatio} tone={spentRatio > 0.9 ? 'warning' : 'accent'} label="Budget spent" />
       </Card>
 
-      {campaign.status === 'live' ? (
-        <div className="mt-4">
+      {/* Even grid on phones (Invite spans the row), a single row of buttons on wider screens. */}
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        {campaign.status === 'live' ? (
           <Button
             variant="secondary"
-            fullWidth={false}
+            className="col-span-2 sm:w-auto"
             onClick={() => router.push(`/brand/creators?campaign=${campaign.id}`)}
           >
             Invite creators
           </Button>
-        </div>
-      ) : null}
-
-      <div className="mt-3">
+        ) : null}
         <Button
           variant="secondary"
-          fullWidth={false}
+          className="sm:w-auto"
           onClick={() => router.push(`/brand/campaigns/${campaign.id}/report`)}
         >
           View report
@@ -151,8 +149,7 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
         {campaign.status !== 'closed' ? (
           <Button
             variant="secondary"
-            fullWidth={false}
-            className="ms-2"
+            className="sm:w-auto"
             onClick={() => router.push(`/brand/campaigns/${campaign.id}/edit`)}
           >
             Edit campaign
@@ -362,14 +359,15 @@ function SubmissionRow({ submission, campaignId }: { submission: Submission; cam
       </div>
 
       {submission.status === 'pending' ? (
-        <div className="mt-3 flex gap-2">
-          <Button size="sm" fullWidth={false} loading={review.isPending} onClick={approve}>
+        <div className="mt-3 grid grid-cols-3 gap-2 sm:flex">
+          <Button size="sm" className="sm:w-auto" loading={review.isPending} onClick={approve}>
             Approve
           </Button>
-          <Button size="sm" variant="secondary" fullWidth={false} onClick={() => setRejecting('request_changes')}>
-            Request changes
+          <Button size="sm" variant="secondary" className="sm:w-auto" onClick={() => setRejecting('request_changes')}>
+            <span className="sm:hidden">Changes</span>
+            <span className="hidden sm:inline">Request changes</span>
           </Button>
-          <Button size="sm" variant="secondary" fullWidth={false} onClick={() => setRejecting('reject')}>
+          <Button size="sm" variant="secondary" className="sm:w-auto" onClick={() => setRejecting('reject')}>
             Reject
           </Button>
         </div>
