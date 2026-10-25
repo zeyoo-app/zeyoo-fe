@@ -2,6 +2,7 @@ import { SESSION_EXPIRED_EVENT } from '../auth/sessionEvents';
 import type { Money } from '../money/money';
 import type { ZeyooApi } from './ZeyooApi';
 import type {
+  TeamMember,
   CampaignApplication,
   CreatorInvitation,
   MyApplication,
@@ -43,7 +44,7 @@ import type {
 interface BackendTokens { accessToken: string; refreshToken: string }
 interface BackendAccount { id: string; email: string | null; phone?: string | null; type: string; emailVerifiedAt?: string | null; phoneVerifiedAt?: string | null; organizations?: { organizationId: string; name: string }[]; hasCreatorProfile?: boolean }
 interface BackendOrganization { id: string; name: string; website?: string | null; industry?: string | null; logoUrl?: string | null }
-interface BackendCampaign { id: string; title: string; description: string; guidelines?: string | null; platform: string; platforms?: string[]; maxRewardPerCreatorAmount?: number | null; hashtags?: string[]; mentions?: string[]; referenceMaterials?: { name: string; url: string }[]; status: string; currencyCode: string; budgetAmount: number; rewardAmount: number; organization?: { name?: string }; organizationId: string; categoryId?: string | null; endDate?: string; contentType?: string; coverImageUrl?: string | null }
+interface BackendCampaign { id: string; title: string; description: string; guidelines?: string | null; platform: string; platforms?: string[]; maxRewardPerCreatorAmount?: number | null; hashtags?: string[]; mentions?: string[]; referenceMaterials?: { name: string; url: string }[]; status: string; currencyCode: string; budgetAmount: number; rewardAmount: number; organization?: { name?: string }; organizationId: string; categoryId?: string | null; startDate?: string; endDate?: string; rewardType?: string; goals?: string | null; audience?: string | null; contentType?: string; coverImageUrl?: string | null }
 interface BackendFunding { fundingId: string; checkoutUrl?: string | null; amountMinor: number; currencyCode: string; status?: 'PENDING' | 'SUCCEEDED' | 'FAILED' }
 interface BackendProfile { displayName: string; username?: string; avatarUrl?: string | null; headline?: string | null; bio?: string | null; verificationStatus?: string; verificationNote?: string | null }
 interface BackendSubmission {
@@ -218,8 +219,8 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       const value = await request<BackendCampaign>('POST', `/organizations/${id}/campaigns`, {
         title: input.title, description: describeCampaign(input), guidelines: serializeGuidelines(input.requirements),
         platforms: input.platforms.map((item) => item.toUpperCase()), hashtags: input.requirements.hashtags, mentions: input.requirements.mentions, referenceMaterials: (input.referenceMaterials ?? []).map(({ name, url }) => ({ name, url })), maxRewardPerCreatorAmount: input.perCreatorCap.minorUnits > 0 && input.perCreatorCap.minorUnits < input.budget.minorUnits ? input.perCreatorCap.minorUnits : undefined, contentType: input.contentType.toUpperCase(), categoryId: input.categoryId,
-        coverImageUrl: await hostedImageUrl(input.coverImageUrl), visibility: input.visibility === 'private' ? 'PRIVATE' : 'PUBLIC', startDate: new Date().toISOString(), endDate: input.endDate,
-        currencyCode: input.budget.currency, budgetAmount: input.budget.minorUnits, rewardType: 'PER_VIEW', rewardAmount: input.ratePerThousandViews.minorUnits,
+        coverImageUrl: await hostedImageUrl(input.coverImageUrl), visibility: input.visibility === 'private' ? 'PRIVATE' : 'PUBLIC', startDate: input.startDate ?? new Date().toISOString(), endDate: input.endDate, goals: input.goals?.trim() || undefined, audience: input.audience?.trim() || undefined,
+        currencyCode: input.budget.currency, budgetAmount: input.budget.minorUnits, rewardType: input.rewardType === 'per_item' ? 'FIXED_PER_ITEM' : 'PER_VIEW', rewardAmount: input.ratePerThousandViews.minorUnits,
       });
       return mapCampaign(value, organizationName);
     },
@@ -261,6 +262,32 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
     async resubmitSubmission({ submissionId, postUrl, kind }) { return { ...mapSubmission(await request<BackendSubmission>('POST', `/submissions/${submissionId}/revisions`, { contentType: kind.toUpperCase(), contentUrl: postUrl })), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false }; },
     async startVideoUpload({ contentType, size }) { return request<VideoUploadTicket>('POST', '/media/uploads/videos', { contentType, size }); },
     async completeVideoUpload(uploadId) { return request<UploadedVideo>('POST', `/media/uploads/videos/${uploadId}/complete`); },
+    async updateCampaign({ campaignId, title, brief, goals, audience, contentRules, hashtags, mentions, endDate }) {
+      const value = await request<BackendCampaign>('PATCH', `/campaigns/${campaignId}`, {
+        title: title?.trim(), description: brief?.trim(), goals: goals?.trim(), audience: audience?.trim(),
+        guidelines: contentRules ? serializeGuidelines({ contentRules, hashtags: [], mentions: [], disclosureRequired: true }) : undefined,
+        hashtags, mentions, endDate,
+      });
+      return mapCampaign(value, value.organization?.name ?? 'Brand');
+    },
+    async getCampaignReportCsv(campaignId) {
+      const current = await token();
+      const response = await fetch(`${root}/campaigns/${campaignId}/report/csv`, {
+        headers: current ? { Authorization: `Bearer ${current}` } : {},
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error(`Could not export the report (status ${response.status}).`);
+      return response.text();
+    },
+    async inviteTeamMember({ email, role }) {
+      await request('POST', `/organizations/${await currentOrganizationId()}/members`, { email: email.trim(), role: role === 'Owner' ? 'OWNER' : 'MEMBER' });
+    },
+    async updateTeamMemberRole({ memberId, role }) {
+      await request('PATCH', `/organizations/${await currentOrganizationId()}/members/${memberId}`, { role: role === 'Owner' ? 'OWNER' : 'MEMBER' });
+    },
+    async removeTeamMember(memberId) {
+      await request('DELETE', `/organizations/${await currentOrganizationId()}/members/${memberId}`);
+    },
     async getMyApplications() { return (await request<BackendApplication[]>('GET', '/me/applications')).map(mapMyApplication); },
     async applyToCampaign({ campaignId, message }) { return mapMyApplication(await request<BackendApplication>('POST', `/campaigns/${campaignId}/applications`, { acceptedTerms: true, message: message?.trim() || undefined })); },
     async withdrawApplication(applicationId) { await request('POST', `/applications/${applicationId}/withdraw`); },
@@ -272,9 +299,9 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       const id = await currentOrganizationId();
       const [organization, team] = await Promise.all([
         request<BackendOrganization>('GET', `/organizations/${id}`),
-        request<{ userId: string; name: string; email: string | null; role: string }[]>('GET', `/organizations/${id}/members`),
+        request<BackendMember[]>('GET', `/organizations/${id}/members`),
       ]);
-      return { organizationName: organization.name, website: organization.website ?? undefined, industry: organization.industry ?? undefined, logoUrl: organization.logoUrl ?? undefined, plan: 'Growth', teamMembers: team.map((member) => ({ id: member.userId, name: member.name, email: member.email ?? '', role: member.role === 'OWNER' ? 'Owner' : member.role === 'ADMIN' ? 'Admin' : 'Member' })) };
+      return { organizationName: organization.name, website: organization.website ?? undefined, industry: organization.industry ?? undefined, logoUrl: organization.logoUrl ?? undefined, plan: 'Growth', teamMembers: team.map(mapMember) };
     },
     async updateBrandProfile(input) {
       const id = await currentOrganizationId();
@@ -293,7 +320,12 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       return await readCreatorProfile();
     },
     async connectSocial(platform) { await request('POST', '/creator-profile/social-accounts', { platform: platform.toUpperCase(), handle: platform }); return await readCreatorProfile(); },
-    async getCreatorDirectory() { return (await request<(BackendProfile & { userId: string; socialAccounts?: BackendSocialAccount[] })[]>('GET', '/creators')).map((creator) => ({ id: creator.userId, handle: creator.username ? `@${creator.username}` : creator.headline ?? creator.displayName, displayName: creator.displayName, avatarUrl: creator.avatarUrl ?? undefined, platforms: (creator.socialAccounts ?? []).map((account) => platform(account.platform)), categories: [], followers: 0, averageViews: 0 })); },
+    async getCreatorDirectory(filter) {
+      const query = new URLSearchParams();
+      if (filter?.platform) query.set('platform', filter.platform.toUpperCase());
+      if (filter?.verifiedOnly) query.set('verifiedOnly', 'true');
+      const path = query.size ? `/creators?${query}` : '/creators';
+      return (await request<(BackendProfile & { userId: string; socialAccounts?: BackendSocialAccount[] })[]>('GET', path)).map((creator) => ({ id: creator.userId, handle: creator.username ? `@${creator.username}` : creator.headline ?? creator.displayName, displayName: creator.displayName, avatarUrl: creator.avatarUrl ?? undefined, platforms: (creator.socialAccounts ?? []).map((account) => platform(account.platform)), categories: [], followers: 0, averageViews: 0, verified: creator.verificationStatus === 'VERIFIED' })); },
     async inviteCreator({ campaignId, creatorId, email }) {
       await request('POST', `/campaigns/${campaignId}/invitations`, creatorId ? { creatorUserId: creatorId } : { creatorEmail: email });
     },
@@ -424,7 +456,7 @@ function mapSession(account: BackendAccount): Session {
 
 function mapCampaign(value: BackendCampaign, brandName: string): Campaign {
   const currency = value.currencyCode || 'USD';
-  return { id: value.id, title: value.title, brandName, platform: platform(value.platform), platforms: (value.platforms?.length ? value.platforms : [value.platform]).map(platform), contentType: value.contentType === 'CLIPPING' ? 'clipping' : 'ugc', endDate: value.endDate, coverImageUrl: value.coverImageUrl ?? undefined, ratePerThousandViews: { minorUnits: value.rewardAmount, currency }, budget: { minorUnits: value.budgetAmount, currency }, budgetSpent: { minorUnits: 0, currency }, perCreatorCap: { minorUnits: value.maxRewardPerCreatorAmount ?? value.budgetAmount, currency }, status: value.status === 'PUBLISHED' ? 'live' : value.status === 'CLOSED' ? 'closed' : 'draft', brief: value.description, requirements: { hashtags: value.hashtags ?? [], mentions: value.mentions ?? [], contentRules: parseGuidelines(value.guidelines), disclosureRequired: true }, submissionCount: 0, referenceMaterials: (value.referenceMaterials ?? []).map((material, index) => ({ id: `${value.id}-${index}`, name: material.name, url: material.url })) };
+  return { id: value.id, title: value.title, brandName, platform: platform(value.platform), platforms: (value.platforms?.length ? value.platforms : [value.platform]).map(platform), contentType: value.contentType === 'CLIPPING' ? 'clipping' : 'ugc', endDate: value.endDate, coverImageUrl: value.coverImageUrl ?? undefined, rewardType: value.rewardType === 'FIXED_PER_ITEM' ? 'per_item' : 'per_view', ratePerThousandViews: { minorUnits: value.rewardAmount, currency }, goals: value.goals ?? undefined, audience: value.audience ?? undefined, startDate: value.startDate, budget: { minorUnits: value.budgetAmount, currency }, budgetSpent: { minorUnits: 0, currency }, perCreatorCap: { minorUnits: value.maxRewardPerCreatorAmount ?? value.budgetAmount, currency }, status: value.status === 'PUBLISHED' ? 'live' : value.status === 'CLOSED' ? 'closed' : 'draft', brief: value.description, requirements: { hashtags: value.hashtags ?? [], mentions: value.mentions ?? [], contentRules: parseGuidelines(value.guidelines), disclosureRequired: true }, submissionCount: 0, referenceMaterials: (value.referenceMaterials ?? []).map((material, index) => ({ id: `${value.id}-${index}`, name: material.name, url: material.url })) };
 }
 
 interface BackendCampaignEarnings { currencyCode: string; creators: { creatorUserId: string; views: number; accruedMinor: number; paused: boolean; risk: string }[] }
@@ -597,6 +629,13 @@ function mapFunding(value: BackendFunding): CampaignFunding {
     amount: { minorUnits: value.amountMinor, currency: value.currencyCode },
     checkoutUrl: value.checkoutUrl ?? undefined,
   };
+}
+
+interface BackendMember { id: string; userId: string; role: string; user?: { email: string | null } | null }
+
+function mapMember(member: BackendMember): TeamMember {
+  const email = member.user?.email ?? '';
+  return { id: member.id, userId: member.userId, name: email ? email.split('@')[0] ?? email : 'Teammate', email, role: member.role === 'OWNER' ? 'Owner' : 'Member' };
 }
 
 function mapMyApplication(value: BackendApplication): MyApplication {

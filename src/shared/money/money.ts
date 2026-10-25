@@ -34,3 +34,13 @@ export function formatCount(count: number, locale?: string): string {
 export function formatRatePerThousandViews(rate: Money, locale?: string): string {
   return `${formatMoney(rate, locale)} / 1K views`;
 }
+
+/** A campaign's reward in words: per 1,000 views, or a fixed amount per approved post. */
+export function formatCampaignReward(
+  campaign: { rewardType?: 'per_view' | 'per_item'; ratePerThousandViews: Money },
+  locale?: string,
+): string {
+  return campaign.rewardType === 'per_item'
+    ? `${formatMoney(campaign.ratePerThousandViews, locale)} / approved post`
+    : formatRatePerThousandViews(campaign.ratePerThousandViews, locale);
+}

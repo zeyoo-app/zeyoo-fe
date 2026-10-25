@@ -7,6 +7,8 @@ import type {
   Campaign,
   CampaignStatus,
   CreateCampaignInput,
+  CreatorDirectoryFilter,
+  UpdateCampaignInput,
   FlagCreatorInput,
   InviteCreatorInput,
 } from '@/shared/api';
@@ -80,9 +82,26 @@ export function useSetCampaignStatus(campaignId: string) {
   });
 }
 
-export function useCreatorDirectory() {
+export function useCreatorDirectory(filter: CreatorDirectoryFilter = {}) {
   const api = useApi();
-  return useQuery({ queryKey: queryKeys.creatorDirectory, queryFn: () => api.getCreatorDirectory() });
+  return useQuery({
+    queryKey: [...queryKeys.creatorDirectory, filter.platform ?? 'any', Boolean(filter.verifiedOnly)],
+    queryFn: () => api.getCreatorDirectory(filter),
+  });
+}
+
+/** Edit a campaign, then refresh it and the brand's lists. */
+export function useUpdateCampaign() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateCampaignInput) => api.updateCampaign(input),
+    onSuccess: (campaign) => {
+      queryClient.setQueryData(queryKeys.campaign(campaign.id), campaign);
+      queryClient.invalidateQueries({ queryKey: queryKeys.brandCampaigns });
+      queryClient.invalidateQueries({ queryKey: queryKeys.brandDashboard });
+    },
+  });
 }
 
 /** Everyone invited to a campaign so far, with where each invitation stands. */

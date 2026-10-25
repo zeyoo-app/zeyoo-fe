@@ -108,7 +108,13 @@ export interface Campaign {
   category?: CampaignCategory;
   endDate?: string;
   coverImageUrl?: string;
+  /** How creators are paid: per 1,000 verified views, or a fixed amount per approved post. */
+  rewardType: RewardType;
+  /** The reward amount: per 1,000 views, or per approved post (see `rewardType`). */
   ratePerThousandViews: Money;
+  goals?: string;
+  audience?: string;
+  startDate?: string;
   /** Total reward budget the brand committed. */
   budget: Money;
   /** Amount already paid out to creators; spend never exceeds `budget`. */
@@ -122,6 +128,9 @@ export interface Campaign {
   referenceMaterials: ReferenceMaterial[];
 }
 
+/** Contract §1.5: one earnings method per campaign. */
+export type RewardType = 'per_view' | 'per_item';
+
 /** Public campaigns appear in Discover; invite-only ones are reachable only by invited creators. */
 export type CampaignVisibility = 'public' | 'private';
 
@@ -131,14 +140,32 @@ export interface CreateCampaignInput {
   contentType: CampaignContentType;
   visibility: CampaignVisibility;
   categoryId?: string;
+  /** Defaults to now when not chosen. */
+  startDate?: string;
   endDate: string;
   coverImageUrl?: string;
   brief: string;
+  goals?: string;
+  audience?: string;
+  rewardType: RewardType;
   ratePerThousandViews: Money;
   budget: Money;
   perCreatorCap: Money;
   requirements: CampaignRequirements;
   referenceMaterials?: ReferenceMaterial[];
+}
+
+/** What a brand can still change on a campaign; live campaigns keep their money and reward terms. */
+export interface UpdateCampaignInput {
+  campaignId: string;
+  title?: string;
+  brief?: string;
+  goals?: string;
+  audience?: string;
+  contentRules?: string[];
+  hashtags?: string[];
+  mentions?: string[];
+  endDate?: string;
 }
 
 export interface FundCampaignInput {
@@ -339,10 +366,19 @@ export interface UpdateProfileInput {
 }
 
 export interface TeamMember {
+  /** The membership id, used to change the role or remove the member. */
   id: string;
+  userId: string;
   name: string;
   email: string;
-  role: 'Owner' | 'Admin' | 'Member';
+  role: TeamRole;
+}
+
+export type TeamRole = 'Owner' | 'Member';
+
+export interface InviteTeamMemberInput {
+  email: string;
+  role: TeamRole;
 }
 
 export interface BrandProfile {
@@ -374,6 +410,13 @@ export interface CreatorDirectoryEntry {
   categories: string[];
   followers: number;
   averageViews: number;
+  /** Zeyoo-verified creator (profile review passed). */
+  verified: boolean;
+}
+
+export interface CreatorDirectoryFilter {
+  platform?: SocialPlatform;
+  verifiedOnly?: boolean;
 }
 
 export interface InviteCreatorInput {

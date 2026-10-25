@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import type { Campaign } from '@/shared/api';
 import { Badge } from '@/design-system';
-import { formatRatePerThousandViews } from '@/shared/money/money';
+import { formatCampaignReward } from '@/shared/money/money';
 import { platformsLabel } from '@/shared/format/platform';
 
 import { CampaignCover } from './CampaignCover';
@@ -19,7 +19,7 @@ export function CampaignCard({ campaign, href }: { campaign: Campaign; href: str
         <div className="flex items-center justify-between gap-3">
           <Badge tone="neutral">{platformsLabel(campaign.platforms)}</Badge>
           <Badge tone="success" className="font-numeric">
-            {formatRatePerThousandViews(campaign.ratePerThousandViews)}
+            {formatCampaignReward(campaign)}
           </Badge>
         </div>
         <h3 className="mt-3 font-display text-lg font-semibold text-text">{campaign.title}</h3>
