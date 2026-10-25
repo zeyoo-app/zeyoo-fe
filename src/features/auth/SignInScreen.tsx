@@ -45,15 +45,20 @@ export function SignInScreen() {
     if (waitSeconds !== null) start(waitSeconds);
   }, [waitSeconds, start, error]);
   // While the server is making us wait, show the live countdown instead of the frozen message.
-  const identifierError = accountMissing
-    ? null
-    : waitSeconds === null
+  const isPhone = channel === 'phone';
+  const identifierError = accountMissing ? (
+    <>
+      No account with this {isPhone ? 'number' : 'email'}.{' '}
+      <Link href="/sign-up" className="font-semibold underline">
+        Create an account
+      </Link>
+    </>
+  ) : waitSeconds === null
       ? error
       : remaining > 0
         ? `Please wait ${remaining} ${remaining === 1 ? 'second' : 'seconds'} before requesting another code.`
         : null;
 
-  const isPhone = channel === 'phone';
   const canContinue = isPhone ? isCompletePhone(phone) : email.includes('@');
 
   async function submitIdentifier() {
@@ -103,16 +108,6 @@ export function SignInScreen() {
           </div>
 
           <OrDivider label="or" />
-
-          {accountMissing ? (
-            <div role="alert" className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-4">
-              <p className="text-[15px] font-semibold text-text">No account found</p>
-              <p className="text-sm text-text-muted">{error}</p>
-              <Button size="sm" href="/sign-up" className="mt-1">
-                Create an account
-              </Button>
-            </div>
-          ) : null}
 
           {isPhone ? (
             <PhoneInput value={phone} onChange={setPhone} error={identifierError} />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 
 import { phoneNumberError } from '@/shared/format/phone';
 
@@ -10,7 +10,7 @@ interface PhoneInputProps {
   label?: string;
   value: string;
   onChange: (value: string) => void;
-  error?: string | null;
+  error?: ReactNode;
 }
 
 export function PhoneInput({ label = 'Phone number', value, onChange, error }: PhoneInputProps) {
