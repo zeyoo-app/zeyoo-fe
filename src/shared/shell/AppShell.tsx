@@ -37,7 +37,7 @@ export function AppShell({ role, nav, children }: AppShellProps) {
     <div className="min-h-dvh bg-bg md:flex">
       <Sidebar nav={nav} />
       <MobileTopBar />
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 pb-24 pt-4 md:px-8 md:pb-10 md:pt-8">
+      <main className="mx-auto w-full min-w-0 max-w-4xl flex-1 px-4 pb-24 pt-4 md:px-8 md:pb-10 md:pt-8">
         {children}
       </main>
       <MobileTabBar nav={nav} />

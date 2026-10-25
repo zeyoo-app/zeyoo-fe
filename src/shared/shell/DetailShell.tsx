@@ -41,10 +41,11 @@ export function DetailShell({ role, eyebrow, title, subtitle, onBack, children }
         {eyebrow ? (
           <p className="mb-1 text-xs font-medium uppercase tracking-wide text-text-tertiary">{eyebrow}</p>
         ) : null}
-        <h1 className="font-display text-2xl font-semibold text-text">{title}</h1>
+        <h1 className="break-words font-display text-2xl font-semibold text-text">{title}</h1>
         {subtitle ? <p className="mt-1 text-[15px] text-text-muted">{subtitle}</p> : null}
       </header>
-      <div className="flex flex-1 flex-col gap-4">{children}</div>
+      {/* min-w-0: a long unbreakable value (an email, a URL) wraps or truncates instead of widening the page. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-4">{children}</div>
     </main>
   );
 }
