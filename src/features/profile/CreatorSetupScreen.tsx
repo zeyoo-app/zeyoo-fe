@@ -3,18 +3,10 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-import { Button, Field, ImageUpload, cn, type PickedImage } from '@/design-system';
+import { Button, Field, ImageUpload, type PickedImage } from '@/design-system';
 import { useApi } from '@/shared/api';
 import { useAuthStore } from '@/shared/auth';
 import { DetailShell } from '@/shared/shell';
-
-type SetupPlatform = 'instagram' | 'tiktok' | 'snapchat';
-
-const PLATFORMS: { value: SetupPlatform; label: string }[] = [
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'tiktok', label: 'TikTok' },
-  { value: 'snapchat', label: 'Snapchat' },
-];
 
 /** First-run creator profile step between email verification and Discover. */
 export function CreatorSetupScreen() {
@@ -31,13 +23,12 @@ export function CreatorSetupScreen() {
     () => params.get('name') ?? session?.displayName ?? '',
   );
   const [username, setUsername] = useState('');
-  const [platforms, setPlatforms] = useState<SetupPlatform[]>(['instagram']);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const normalizedUsername = username.trim().replace(/^@/, '').toLowerCase();
   const usernameValid = /^[a-z0-9._]{2,30}$/.test(normalizedUsername);
-  const valid = displayName.trim().length >= 2 && usernameValid && platforms.length > 0;
+  const valid = displayName.trim().length >= 2 && usernameValid;
 
   /**
    * Leaving onboarding is not "go back": the account already exists, so the
@@ -50,12 +41,6 @@ export function CreatorSetupScreen() {
     router.replace('/sign-up');
   }
 
-  function togglePlatform(platform: SetupPlatform) {
-    setPlatforms((current) =>
-      current.includes(platform) ? current.filter((item) => item !== platform) : [...current, platform],
-    );
-  }
-
   async function continueToDiscover() {
     if (!valid || pending) return;
     setPending(true);
@@ -65,7 +50,7 @@ export function CreatorSetupScreen() {
         displayName: displayName.trim(),
         username: normalizedUsername,
         avatarUrl: photo?.url,
-        platforms,
+        platforms: [],
       });
       persistSession(session);
       router.replace('/creator/discover');
@@ -114,30 +99,9 @@ export function CreatorSetupScreen() {
         }
       />
 
-      <div className="flex flex-col gap-2.5">
-        <p className="text-[15px] text-text-muted">Connect your accounts</p>
-        <div role="group" aria-label="Social accounts to connect" className="flex flex-wrap gap-2">
-          {PLATFORMS.map((platform) => {
-            const selected = platforms.includes(platform.value);
-            return (
-              <button
-                key={platform.value}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => togglePlatform(platform.value)}
-                className={cn(
-                  'min-h-[34px] rounded-full border px-3 text-sm',
-                  selected
-                    ? 'border-primary bg-primary text-on-primary'
-                    : 'border-border bg-surface-raised text-text-muted hover:bg-surface-hover',
-                )}
-              >
-                {platform.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <p className="text-sm text-text-muted">
+        You can connect Instagram, TikTok, YouTube and Snapchat later from Profile → Connected Accounts.
+      </p>
 
       {error ? <p className="text-xs text-danger">{error}</p> : null}
       <Button loading={pending} disabled={!valid || pending} onClick={continueToDiscover}>

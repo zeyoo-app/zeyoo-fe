@@ -1,21 +1,15 @@
 'use client';
 
-import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
 
-import { AsyncContent, Badge, Button, Card, Field, SegmentedToggle } from '@/design-system';
-import type { Campaign, SubmissionKind } from '@/shared/api';
+import { AsyncContent, Badge, Card } from '@/design-system';
+import type { Campaign } from '@/shared/api';
 import { formatMoney, formatRatePerThousandViews } from '@/shared/money/money';
 
 import { CampaignCover } from './CampaignCover';
 import { useCampaign } from './hooks';
-import { useSubmitParticipation } from '../submissions/hooks';
-
-const KIND_OPTIONS: { value: SubmissionKind; label: string }[] = [
-  { value: 'link', label: 'Paste link' },
-  { value: 'upload', label: 'Upload' },
-];
+import { ParticipationSection } from './ParticipationSection';
 
 export function CampaignDetailCreatorScreen({ campaignId }: { campaignId: string }) {
   const query = useCampaign(campaignId);
@@ -28,11 +22,6 @@ export function CampaignDetailCreatorScreen({ campaignId }: { campaignId: string
 
 function CampaignDetail({ campaign }: { campaign: Campaign }) {
   const router = useRouter();
-  const submit = useSubmitParticipation();
-  const [kind, setKind] = useState<SubmissionKind>('link');
-  const [postUrl, setPostUrl] = useState('');
-
-  const canSubmit = postUrl.trim().length > 4 && !submit.isPending;
 
   return (
     <>
@@ -81,34 +70,7 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
         <ChevronRight className="size-[22px] shrink-0 text-text-muted" aria-hidden />
       </button>
 
-      <Card className="mt-4">
-        <h2 className="font-display text-lg font-semibold text-text">Submit your content</h2>
-        <div className="mt-3 max-w-xs">
-          <SegmentedToggle options={KIND_OPTIONS} value={kind} onChange={setKind} ariaLabel="Submission type" />
-        </div>
-        <div className="mt-3">
-          <Field
-            placeholder={kind === 'link' ? 'https://instagram.com/p/…' : 'Uploaded file URL'}
-            value={postUrl}
-            onChange={(event) => setPostUrl(event.target.value)}
-            aria-label="Post URL"
-          />
-        </div>
-        <div className="mt-3">
-          <Button
-            loading={submit.isPending}
-            disabled={!canSubmit}
-            onClick={() =>
-              submit.mutate(
-                { campaignId: campaign.id, postUrl: postUrl.trim(), kind },
-                { onSuccess: () => router.replace('/creator/submissions') },
-              )
-            }
-          >
-            Submit for review
-          </Button>
-        </div>
-      </Card>
+      <ParticipationSection campaign={campaign} />
     </>
   );
 }

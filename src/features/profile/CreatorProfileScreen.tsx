@@ -138,6 +138,13 @@ function ProfileBody({
             onPress={() => router.push('/settings/legal')}
           />
           <Divider />
+          <ListRow
+            title="Campaign Rules"
+            subtitle="What creators and brands agree to"
+            leading={<RowIcon icon={FileText} />}
+            onPress={() => router.push('/campaign-rules')}
+          />
+          <Divider />
           <ListRow title="Log Out" tone="danger" onPress={onSignOut} />
           <Divider />
           <ListRow title="Delete account" tone="danger" onPress={deletion.requestDeletion} />

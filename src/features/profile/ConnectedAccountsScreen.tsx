@@ -4,10 +4,11 @@ import { AsyncContent, Badge, Button, Divider } from '@/design-system';
 import { DetailShell } from '@/shared/shell';
 
 import { useConnectSocial, useCreatorProfile, useStartPlatformConnection } from './hooks';
+import { SocialPlatformIcon } from './SocialPlatformIcon';
 import { SOCIAL_PLATFORMS } from './socialPlatforms';
 
 /** Instagram and TikTok are authorised on the platform itself; the rest take a handle. */
-const OAUTH_PLATFORMS = ['instagram', 'tiktok'] as const;
+const OAUTH_PLATFORMS = ['instagram', 'tiktok', 'youtube', 'snapchat'] as const;
 
 function isOAuthPlatform(platform: string): platform is (typeof OAUTH_PLATFORMS)[number] {
   return (OAUTH_PLATFORMS as readonly string[]).includes(platform);
@@ -39,10 +40,18 @@ export function ConnectedAccountsScreen() {
               const oauth = isOAuthPlatform(account.platform);
               // A handle typed in is only a claim; signing in to the platform verifies it.
               const settled = linked && (linked.verified || !oauth);
+              const anyPending = connect.isPending || startConnection.isPending;
+              // Only the clicked row spins; the others are held until it finishes.
+              const pending =
+                (connect.isPending && connect.variables === account.platform) ||
+                (startConnection.isPending && startConnection.variables === account.platform);
               return (
                 <div key={account.platform}>
                   <div className="flex min-h-[72px] items-center justify-between gap-3">
-                    <p className="font-display text-base font-semibold text-text">{account.label}</p>
+                    <div className="flex items-center gap-3">
+                      <SocialPlatformIcon platform={account.platform} />
+                      <p className="font-display text-base font-semibold text-text">{account.label}</p>
+                    </div>
                     {settled ? (
                       <Badge tone="success">{linked.verified ? 'Verified' : 'Connected'}</Badge>
                     ) : (
@@ -50,14 +59,15 @@ export function ConnectedAccountsScreen() {
                         size="sm"
                         variant="secondary"
                         fullWidth={false}
-                        loading={connect.isPending || startConnection.isPending}
+                        loading={pending}
+                        disabled={anyPending && !pending}
                         onClick={() =>
                           isOAuthPlatform(account.platform)
                             ? startConnection.mutate(account.platform)
                             : connect.mutate(account.platform)
                         }
                       >
-                        {linked ? 'Verify' : 'Connect'}
+                        Connect
                       </Button>
                     )}
                   </div>

@@ -21,6 +21,7 @@ import type { Campaign, FraudCase, RiskLevel, Submission } from '@/shared/api';
 import { formatCount, formatMoney } from '@/shared/money/money';
 import { BackButton } from '@/shared/nav/BackButton';
 
+import { ApplicationsReview } from './ApplicationsReview';
 import { CampaignCover } from './CampaignCover';
 import { useOpenDispute } from '@/shared/disputes/hooks';
 import {
@@ -163,6 +164,8 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
         onClose={(caseId, action) => closeCase.mutate({ caseId, action })}
       />
 
+      <ApplicationsReview campaignId={campaign.id} />
+
       <h2 className="mb-3 mt-8 font-display text-lg font-semibold text-text">
         Submissions{submissionsQuery.data ? ` (${submissionsQuery.data.length})` : ''}
       </h2>
@@ -269,10 +272,11 @@ function EarningsReviews({
   );
 }
 
-const STATUS_TONE = {
-  pending: 'warning',
-  approved: 'success',
-  rejected: 'danger',
+const STATUS = {
+  pending: { tone: 'warning', label: 'Pending' },
+  needs_changes: { tone: 'warning', label: 'Changes requested' },
+  approved: { tone: 'success', label: 'Approved' },
+  rejected: { tone: 'danger', label: 'Rejected' },
 } as const;
 
 function SubmissionRow({ submission, campaignId }: { submission: Submission; campaignId: string }) {
@@ -288,7 +292,7 @@ function SubmissionRow({ submission, campaignId }: { submission: Submission; cam
     (item) => item.creatorId === submission.creatorId && item.status === 'open',
   );
   const track = useTrackViews(campaignId);
-  const [rejecting, setRejecting] = useState(false);
+  const [rejecting, setRejecting] = useState<'reject' | 'request_changes' | null>(null);
   const [reason, setReason] = useState('');
   const [enteringViews, setEnteringViews] = useState(false);
   const [viewsDraft, setViewsDraft] = useState('');
@@ -330,9 +334,16 @@ function SubmissionRow({ submission, campaignId }: { submission: Submission; cam
             {submission.creatorHandle}
             {submission.accountVerified ? ' · Verified account' : ' · Unverified account'}
           </p>
-          <p className="truncate text-xs text-text-muted">{submission.postUrl}</p>
+          <a
+            href={submission.postUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block truncate text-xs text-green-text hover:underline"
+          >
+            {submission.kind === 'upload' ? '▶ Watch uploaded video' : submission.postUrl}
+          </a>
         </div>
-        <Badge tone={STATUS_TONE[submission.status]}>{submission.status}</Badge>
+        <Badge tone={STATUS[submission.status].tone}>{STATUS[submission.status].label}</Badge>
       </div>
 
       <div className="mt-3 flex items-center gap-4 text-sm text-text-muted">
@@ -345,10 +356,16 @@ function SubmissionRow({ submission, campaignId }: { submission: Submission; cam
           <Button size="sm" fullWidth={false} loading={review.isPending} onClick={approve}>
             Approve
           </Button>
-          <Button size="sm" variant="secondary" fullWidth={false} onClick={() => setRejecting(true)}>
+          <Button size="sm" variant="secondary" fullWidth={false} onClick={() => setRejecting('request_changes')}>
+            Request changes
+          </Button>
+          <Button size="sm" variant="secondary" fullWidth={false} onClick={() => setRejecting('reject')}>
             Reject
           </Button>
         </div>
+      ) : null}
+      {submission.status === 'needs_changes' && submission.changeRequest ? (
+        <p className="mt-2 text-xs text-text-muted">Waiting for a revision: {submission.changeRequest}</p>
       ) : null}
 
       {submission.status === 'approved' ? (
@@ -477,18 +494,32 @@ function SubmissionRow({ submission, campaignId }: { submission: Submission; cam
         </Button>
       </Modal>
 
-      <Modal open={rejecting} onClose={() => setRejecting(false)} title="Reject submission">
-        <p className="text-sm text-text-muted">Tell {submission.creatorHandle} why this doesn&apos;t fit the brief.</p>
-        <Textarea placeholder="Reason for rejection" value={reason} onChange={(event) => setReason(event.target.value)} />
+      <Modal
+        open={rejecting !== null}
+        onClose={() => setRejecting(null)}
+        title={rejecting === 'request_changes' ? 'Request changes' : 'Reject submission'}
+      >
+        <p className="text-sm text-text-muted">
+          {rejecting === 'request_changes'
+            ? `Tell ${submission.creatorHandle} what to change. They can submit a revised post.`
+            : `Tell ${submission.creatorHandle} why this doesn\u2019t fit the brief.`}
+        </p>
+        <Textarea
+          placeholder={rejecting === 'request_changes' ? 'e.g. Add the #ad label and tag @brand' : 'Reason for rejection'}
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+        />
         <Button
-          variant="danger"
+          variant={rejecting === 'request_changes' ? 'primary' : 'danger'}
           disabled={reason.trim().length < 3}
           onClick={() => {
-            review.mutate({ submissionId: submission.id, decision: 'reject', reason: reason.trim() });
-            setRejecting(false);
+            if (!rejecting) return;
+            review.mutate({ submissionId: submission.id, decision: rejecting, reason: reason.trim() });
+            setRejecting(null);
+            setReason('');
           }}
         >
-          Reject submission
+          {rejecting === 'request_changes' ? 'Send change request' : 'Reject submission'}
         </Button>
       </Modal>
     </Card>

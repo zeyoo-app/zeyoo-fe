@@ -57,6 +57,15 @@ import type {
   Session,
   Submission,
   SubmitParticipationInput,
+  ResubmitInput,
+  MyApplication,
+  CampaignApplication,
+  ApplyToCampaignInput,
+  ReviewApplicationInput,
+  CreatorInvitation,
+  VideoContentType,
+  VideoUploadTicket,
+  UploadedVideo,
   UpdateBrandProfileInput,
   UpdateProfileInput,
   WalletSummary,
@@ -105,6 +114,21 @@ export interface ZeyooApi {
   syncSubmissionViews(submissionId: string): Promise<ViewTrackingOutcome>;
   getMySubmissions(): Promise<CreatorSubmission[]>;
   submitParticipation(input: SubmitParticipationInput): Promise<CreatorSubmission>;
+  /** Sends a revised post after the brand asked for changes. */
+  resubmitSubmission(input: ResubmitInput): Promise<CreatorSubmission>;
+  /** Reserves a direct-to-storage video upload; the bytes are PUT to `uploadUrl`. */
+  startVideoUpload(input: { contentType: VideoContentType; size: number }): Promise<VideoUploadTicket>;
+  /** Confirms the bytes arrived; the returned URL can then be submitted as an upload. */
+  completeVideoUpload(uploadId: string): Promise<UploadedVideo>;
+
+  // Applications & invitations
+  getMyApplications(): Promise<MyApplication[]>;
+  applyToCampaign(input: ApplyToCampaignInput): Promise<MyApplication>;
+  withdrawApplication(applicationId: string): Promise<void>;
+  getCampaignApplications(campaignId: string): Promise<CampaignApplication[]>;
+  reviewApplication(input: ReviewApplicationInput): Promise<void>;
+  getMyInvitations(): Promise<CreatorInvitation[]>;
+  declineInvitation(invitationId: string): Promise<void>;
 
   // Wallet & payments
   getWallet(): Promise<WalletSummary>;
@@ -147,6 +171,7 @@ export interface ZeyooApi {
   getDisputes(): Promise<Dispute[]>;
   getDispute(disputeId: string): Promise<Dispute>;
   openDispute(input: OpenDisputeInput): Promise<Dispute>;
+  escalateDispute(disputeId: string): Promise<Dispute>;
   sendDisputeMessage(input: { disputeId: string; message: string }): Promise<Dispute>;
 
   // Fraud review

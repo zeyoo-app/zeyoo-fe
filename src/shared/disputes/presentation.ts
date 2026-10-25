@@ -12,7 +12,7 @@ const STATUS: Record<DisputeStatus, StatusPresentation> = {
   open: {
     label: 'Waiting',
     tone: 'warning',
-    explanation: 'Support has not picked this up yet. We aim to respond within 2 business days.',
+    explanation: 'Support has not picked this up yet. Support replies within 2 business days.',
   },
   in_review: {
     label: 'In review',

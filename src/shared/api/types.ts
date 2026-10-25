@@ -11,7 +11,7 @@ export type SocialPlatform = 'instagram' | 'tiktok' | 'snapchat' | 'youtube';
 
 export type CampaignStatus = 'draft' | 'live' | 'closed';
 
-export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
+export type SubmissionStatus = 'pending' | 'needs_changes' | 'approved' | 'rejected';
 
 export type SubmissionKind = 'link' | 'upload';
 
@@ -173,6 +173,8 @@ export interface Submission {
   earning: Money;
   status: SubmissionStatus;
   rejectionReason?: string;
+  /** What the brand asked to change, while the submission is waiting for a revision. */
+  changeRequest?: string;
   /** Fraud/risk hold on the payout for this submission (contract §1.8). */
   onHold?: boolean;
   holdReason?: string;
@@ -189,7 +191,7 @@ export interface CreatorSubmission extends Submission {
   capReached: boolean;
 }
 
-export type ReviewDecision = 'approve' | 'reject';
+export type ReviewDecision = 'approve' | 'reject' | 'request_changes';
 
 export interface ReviewSubmissionInput {
   submissionId: string;
@@ -198,7 +200,7 @@ export interface ReviewSubmissionInput {
 }
 
 /** Platforms a creator authorises through the platform's own OAuth screen. */
-export type ConnectablePlatform = 'instagram' | 'tiktok';
+export type ConnectablePlatform = 'instagram' | 'tiktok' | 'youtube' | 'snapchat';
 
 export interface RecordViewsInput {
   submissionId: string;
@@ -211,6 +213,12 @@ export interface ViewTrackingOutcome {
   views?: number;
   /** Why the platform could not be read, when `status` is `unavailable`. */
   message?: string;
+}
+
+export interface ResubmitInput {
+  submissionId: string;
+  postUrl: string;
+  kind: SubmissionKind;
 }
 
 export interface SubmitParticipationInput {
@@ -247,6 +255,8 @@ export interface WalletSummary {
   held: Money;
   lifetimeEarned: Money;
   payoutConnected: boolean;
+  /** Identity check run by the payment provider during payout setup (contract §1.5). */
+  identityStatus?: 'not_started' | 'in_progress' | 'verified';
 }
 
 /** Brand-side wallet movement: money in from a top-up, out to fund a campaign. */
@@ -409,6 +419,8 @@ export interface AppNotification {
 export interface NotificationPreferences {
   /** Whether notifications are also delivered as push messages to this person's devices. */
   pushEnabled: boolean;
+  /** Whether notifications are also emailed (contract §1.6). */
+  emailEnabled: boolean;
   submissionUpdates: boolean;
   payoutUpdates: boolean;
   campaignInvites: boolean;
@@ -432,6 +444,13 @@ export interface DisputeEvent {
 
 export interface Dispute {
   id: string;
+  /** When support has promised a first reply by. */
+  responseDueAt: string;
+  escalatedAt?: string;
+  /** Unanswered and past the response time. */
+  overdue: boolean;
+  /** The person who opened it may escalate it now. */
+  canEscalate: boolean;
   subjectType: DisputeSubjectType;
   subjectId?: string;
   /** What the dispute is about, in words: a campaign title, "Withdrawal", ... */
@@ -732,4 +751,75 @@ export interface AdminRefundOutcome {
   refundedMinor: number;
   currencyCode: string;
   refunds: number;
+}
+
+// -------------------------------------------------------------------------------------
+// Applications & invitations
+// -------------------------------------------------------------------------------------
+
+export type ApplicationStatus = 'pending' | 'approved' | 'declined' | 'withdrawn';
+
+/** A creator's own application to a campaign. */
+export interface MyApplication {
+  id: string;
+  campaignId: string;
+  campaignTitle: string;
+  status: ApplicationStatus;
+  fromInvitation: boolean;
+  message?: string;
+  createdAt: string;
+}
+
+/** An application as the brand sees it, with who applied. */
+export interface CampaignApplication {
+  id: string;
+  creatorId: string;
+  creatorName: string;
+  creatorHandle: string;
+  creatorAvatarUrl?: string;
+  status: ApplicationStatus;
+  fromInvitation: boolean;
+  message?: string;
+  createdAt: string;
+}
+
+export interface ApplyToCampaignInput {
+  campaignId: string;
+  message?: string;
+}
+
+export interface ReviewApplicationInput {
+  campaignId: string;
+  applicationId: string;
+  approve: boolean;
+}
+
+/** A private-campaign invitation waiting for the creator's answer. */
+export interface CreatorInvitation {
+  id: string;
+  campaignId: string;
+  campaignTitle: string;
+  platform: Campaign['platform'];
+  createdAt: string;
+}
+
+// -------------------------------------------------------------------------------------
+// Video uploads (submission content, contract §1.3 "upload or link")
+// -------------------------------------------------------------------------------------
+
+export type VideoContentType = 'video/mp4' | 'video/quicktime' | 'video/webm';
+
+/** Where to PUT the video bytes, and the URL the video will have once uploaded. */
+export interface VideoUploadTicket {
+  id: string;
+  uploadUrl: string;
+  uploadHeaders: Record<string, string>;
+  url: string;
+}
+
+export interface UploadedVideo {
+  id: string;
+  url: string;
+  contentType: string;
+  size: number;
 }

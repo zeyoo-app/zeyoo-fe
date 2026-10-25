@@ -19,6 +19,9 @@ export function PublicLegalPage({ document }: { document: PublicLegalDocument })
           <Link href="/terms-of-service" className="hover:text-text">
             Terms
           </Link>
+          <Link href="/campaign-rules" className="hover:text-text">
+            Campaign Rules
+          </Link>
         </nav>
       </header>
 

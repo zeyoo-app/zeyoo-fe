@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { AsyncContent, Badge, Button, Card, EmptyState, Modal, PageHeader, Textarea } from '@/design-system';
@@ -9,9 +10,21 @@ import { formatCount, formatMoney } from '@/shared/money/money';
 
 import { useOpenDispute } from '@/shared/disputes/hooks';
 import { useMyFraudCases } from '@/shared/fraud/hooks';
-import { useMySubmissions } from './hooks';
+import { useMyApplications, useMySubmissions } from './hooks';
 
-const STATUS_TONE = { pending: 'warning', approved: 'success', rejected: 'danger' } as const;
+const STATUS = {
+  pending: { tone: 'neutral', label: 'Pending' },
+  needs_changes: { tone: 'warning', label: 'Changes requested' },
+  approved: { tone: 'success', label: 'Approved' },
+  rejected: { tone: 'danger', label: 'Rejected' },
+} as const;
+
+const APPLICATION_STATUS = {
+  pending: { tone: 'neutral', label: 'Pending' },
+  approved: { tone: 'success', label: 'Approved' },
+  declined: { tone: 'danger', label: 'Not approved' },
+  withdrawn: { tone: 'neutral', label: 'Withdrawn' },
+} as const;
 
 export function MySubmissionsScreen() {
   const query = useMySubmissions();
@@ -19,6 +32,7 @@ export function MySubmissionsScreen() {
   return (
     <>
       <PageHeader title="My submissions" subtitle="Track status, earnings, and payout holds." />
+      <ApplicationsList submittedCampaignIds={(query.data ?? []).map((item) => item.campaignId)} />
       <AsyncContent isLoading={query.isLoading} isError={query.isError} data={query.data}>
         {(submissions) =>
           submissions.length === 0 ? (
@@ -58,7 +72,7 @@ function SubmissionRow({ submission }: { submission: CreatorSubmission }) {
           <p className="font-medium text-text">{submission.campaignTitle}</p>
           <p className="text-xs text-text-muted">{submission.brandName}</p>
         </div>
-        <Badge tone={STATUS_TONE[submission.status]}>{submission.status}</Badge>
+        <Badge tone={STATUS[submission.status].tone}>{STATUS[submission.status].label}</Badge>
       </div>
 
       <div className="mt-3 flex items-center gap-4 text-sm">
@@ -98,9 +112,19 @@ function SubmissionRow({ submission }: { submission: CreatorSubmission }) {
       {submission.onHold ? (
         <p className="mt-2 text-xs text-warning">Payout on hold — {submission.holdReason}.</p>
       ) : null}
-      {submission.rejectionReason ? (
+      {submission.status === 'needs_changes' ? (
         <div className="mt-2 flex items-center justify-between gap-3">
-          <p className="text-xs text-danger">{submission.rejectionReason}</p>
+          <p className="text-xs text-warning">
+            Changes requested{submission.changeRequest ? `: ${submission.changeRequest}` : ''}
+          </p>
+          <Link href={`/creator/campaigns/${submission.campaignId}`} className="shrink-0 text-sm text-green-text">
+            Submit a revision →
+          </Link>
+        </div>
+      ) : null}
+      {submission.status === 'rejected' ? (
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p className="text-xs text-danger">{submission.rejectionReason ?? 'This submission was rejected.'}</p>
           <Button size="sm" variant="secondary" fullWidth={false} onClick={() => setAppealing(true)}>
             Appeal
           </Button>
@@ -127,5 +151,36 @@ function SubmissionRow({ submission }: { submission: CreatorSubmission }) {
         </Button>
       </Modal>
     </Card>
+  );
+}
+
+/** Applications that have not turned into a submission yet: waiting, approved but not submitted, or declined. */
+function ApplicationsList({ submittedCampaignIds }: { submittedCampaignIds: string[] }) {
+  const { data } = useMyApplications();
+  const open = (data ?? []).filter(
+    (application) => !submittedCampaignIds.includes(application.campaignId) && application.status !== 'withdrawn',
+  );
+  if (open.length === 0) return null;
+  return (
+    <div className="mb-5 flex flex-col gap-2">
+      <h2 className="font-display text-base font-semibold text-text">Applications</h2>
+      {open.map((application) => (
+        <Link key={application.id} href={`/creator/campaigns/${application.campaignId}`}>
+          <Card className="flex items-center justify-between gap-3 p-4 transition-colors hover:bg-surface-hover">
+            <div className="min-w-0">
+              <p className="truncate font-medium text-text">{application.campaignTitle}</p>
+              <p className="text-xs text-text-muted">
+                {application.status === 'approved'
+                  ? 'Approved — submit your content'
+                  : application.fromInvitation
+                    ? 'From an invitation'
+                    : 'Applied'}
+              </p>
+            </div>
+            <Badge tone={APPLICATION_STATUS[application.status].tone}>{APPLICATION_STATUS[application.status].label}</Badge>
+          </Card>
+        </Link>
+      ))}
+    </div>
   );
 }

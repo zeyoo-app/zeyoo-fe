@@ -15,6 +15,12 @@ const PUSH_ROW: { key: PreferenceKey; title: string; hint: string } = {
   hint: 'Also send these to your phone, when you use the mobile app.',
 };
 
+const EMAIL_ROW: { key: PreferenceKey; title: string; hint: string } = {
+  key: 'emailEnabled',
+  title: 'Email notifications',
+  hint: 'Also send these to your email address.',
+};
+
 const PREFERENCE_ROWS: { key: PreferenceKey; title: string; hint: string }[] = [
   { key: 'submissionUpdates', title: 'Submission updates', hint: 'Approvals, rejections, and views on your content.' },
   { key: 'payoutUpdates', title: 'Payout updates', hint: 'Earnings released, holds, and withdrawals.' },
@@ -50,6 +56,17 @@ export function NotificationPreferencesScreen() {
                 checked={prefs.pushEnabled}
                 onChange={(value) => update.mutate({ ...prefs, pushEnabled: value })}
                 label={PUSH_ROW.title}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4 border-t border-border py-3.5">
+              <div className="min-w-0">
+                <p className="text-[15px] text-text">{EMAIL_ROW.title}</p>
+                <p className="text-xs text-text-muted">{EMAIL_ROW.hint}</p>
+              </div>
+              <Switch
+                checked={prefs.emailEnabled}
+                onChange={(value) => update.mutate({ ...prefs, emailEnabled: value })}
+                label={EMAIL_ROW.title}
               />
             </div>
           </Card>

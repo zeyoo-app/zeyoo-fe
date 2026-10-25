@@ -115,10 +115,19 @@ function DisputeListItem({
         <p className="text-xs uppercase tracking-wide text-text-tertiary">
           {disputeSubjectLabel(dispute.subjectType)}
         </p>
-        <Badge tone={status.tone}>{status.label}</Badge>
+        <div className="flex shrink-0 gap-1">
+          {dispute.escalatedAt ? (
+            <Badge tone="danger">Escalated</Badge>
+          ) : dispute.overdue ? (
+            <Badge tone="warning">Overdue</Badge>
+          ) : null}
+          <Badge tone={status.tone}>{status.label}</Badge>
+        </div>
       </div>
       <p className="mt-1 truncate font-medium text-text">{dispute.title}</p>
-      <p className="truncate text-xs text-text-muted">By {dispute.openedByName}</p>
+      <p className="truncate text-xs text-text-muted">
+        By {dispute.openedByName} · reply due {new Date(dispute.responseDueAt).toLocaleDateString()}
+      </p>
     </button>
   );
 }

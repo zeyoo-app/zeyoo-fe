@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
-import { Button, Field, SegmentedToggle } from '@/design-system';
+import { Button, Field } from '@/design-system';
 import type { Role } from '@/shared/api';
 import { isCompletePhone, normalizePhone } from '@/shared/format/phone';
 
@@ -11,7 +11,6 @@ import { AuthTopShell, OrDivider } from './AuthShell';
 import { AuthChannelSwitch } from './AuthChannelSwitch';
 import type { AuthChannel } from './channel';
 import { PhoneInput } from './PhoneInput';
-import { ROLE_OPTIONS } from './roleOptions';
 import { retryAfterSeconds } from './retryAfter';
 import { useCooldown } from './useCooldown';
 import { SocialAuthButtons } from './SocialAuthButtons';
@@ -38,7 +37,8 @@ export function SignInScreen() {
   const [channel, setChannel] = useState<AuthChannel>('email');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<Role>('creator');
+  // A returning user's role comes from the server; the role picker lives on the sign-up screen.
+  const role: Role = 'creator';
   const [awaitingCode, setAwaitingCode] = useState(false);
 
   const { remaining, start } = useCooldown();
@@ -98,13 +98,6 @@ export function SignInScreen() {
         />
       ) : (
         <>
-          <SegmentedToggle
-            options={ROLE_OPTIONS}
-            value={role}
-            onChange={setRole}
-            ariaLabel="Are you signing in as a Company or a Creator?"
-          />
-
           <div className="flex flex-col gap-2.5">
             <SocialAuthButtons role={role} />
             <AuthChannelSwitch value={channel} onChange={switchChannel} />
