@@ -9,6 +9,8 @@ import type {
   SocialPlatform,
   UpdateBrandProfileInput,
   UpdateProfileInput,
+  InviteTeamMemberInput,
+  TeamRole,
 } from '@/shared/api';
 
 export function useCreatorProfile() {
@@ -63,4 +65,28 @@ export function useConnectSocial() {
   const api = useApi();
   const cacheProfile = useCacheProfile();
   return useMutation({ mutationFn: (platform: SocialPlatform) => api.connectSocial(platform), onSuccess: cacheProfile });
+}
+
+function useTeamMutation<TInput>(run: (input: TInput) => Promise<void>) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.brandProfile }),
+  });
+}
+
+/** Add a teammate by email; someone without a Zeyoo account gets one and an email. */
+export function useInviteTeamMember() {
+  const api = useApi();
+  return useTeamMutation((input: InviteTeamMemberInput) => api.inviteTeamMember(input));
+}
+
+export function useUpdateTeamMemberRole() {
+  const api = useApi();
+  return useTeamMutation((input: { memberId: string; role: TeamRole }) => api.updateTeamMemberRole(input));
+}
+
+export function useRemoveTeamMember() {
+  const api = useApi();
+  return useTeamMutation((memberId: string) => api.removeTeamMember(memberId));
 }

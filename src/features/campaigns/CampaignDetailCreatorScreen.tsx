@@ -5,7 +5,7 @@ import { ChevronRight } from 'lucide-react';
 
 import { AsyncContent, Badge, Card } from '@/design-system';
 import type { Campaign } from '@/shared/api';
-import { formatMoney, formatRatePerThousandViews } from '@/shared/money/money';
+import { formatMoney, formatCampaignReward } from '@/shared/money/money';
 
 import { CampaignCover } from './CampaignCover';
 import { useCampaign } from './hooks';
@@ -33,7 +33,7 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
           <p className="mt-0.5 text-text-muted">{campaign.brandName}</p>
         </div>
         <Badge tone="success" className="font-numeric">
-          {formatRatePerThousandViews(campaign.ratePerThousandViews)}
+          {formatCampaignReward(campaign)}
         </Badge>
       </div>
 
@@ -45,6 +45,22 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
       </Card>
 
       <p className="mt-5 text-sm leading-relaxed text-text-muted">{campaign.brief}</p>
+      {campaign.goals || campaign.audience ? (
+        <Card className="mt-4 flex flex-col gap-3">
+          {campaign.goals ? (
+            <div>
+              <p className="text-sm font-medium text-text">Goals</p>
+              <p className="text-sm text-text-muted">{campaign.goals}</p>
+            </div>
+          ) : null}
+          {campaign.audience ? (
+            <div>
+              <p className="text-sm font-medium text-text">Audience</p>
+              <p className="text-sm text-text-muted">{campaign.audience}</p>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
 
       {campaign.requirements.hashtags.length || campaign.requirements.mentions.length ? (
         <div className="mt-4 flex flex-wrap gap-2">

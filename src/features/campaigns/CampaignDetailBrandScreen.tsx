@@ -148,6 +148,16 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
         >
           View report
         </Button>
+        {campaign.status !== 'closed' ? (
+          <Button
+            variant="secondary"
+            fullWidth={false}
+            className="ms-2"
+            onClick={() => router.push(`/brand/campaigns/${campaign.id}/edit`)}
+          >
+            Edit campaign
+          </Button>
+        ) : null}
       </div>
 
       {campaign.status === 'closed' ? (

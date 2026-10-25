@@ -24,12 +24,13 @@ import type {
   CampaignCategory,
   CampaignContentType,
   CreateCampaignInput,
+  RewardType,
   Money,
   ReferenceMaterial,
   SocialPlatform,
 } from '@/shared/api';
 import { platformLabel, platformsLabel } from '@/shared/format/platform';
-import { formatMoney, formatRatePerThousandViews } from '@/shared/money/money';
+import { formatCampaignReward, formatMoney } from '@/shared/money/money';
 
 import {
   useCampaignCategories,
@@ -50,6 +51,15 @@ const CAMPAIGN_TYPES: { value: CampaignContentType; label: string; description: 
 ];
 const MINOR_UNITS_PER_MAJOR = 100;
 
+const REWARD_TYPE_OPTIONS: { value: RewardType; label: string }[] = [
+  { value: 'per_view', label: 'Per 1K views' },
+  { value: 'per_item', label: 'Per approved post' },
+];
+const REWARD_TYPE_HINT: Record<RewardType, string> = {
+  per_view: 'Creators earn for every 1,000 verified views, up to the per-creator maximum.',
+  per_item: 'Creators earn a fixed amount for each post you approve.',
+};
+
 const VISIBILITY_OPTIONS: { value: CampaignVisibility; label: string }[] = [
   { value: 'public', label: 'Public' },
   { value: 'private', label: 'Invite only' },
@@ -69,7 +79,11 @@ export function CreateCampaignScreen() {
   const [campaignType, setCampaignType] = useState<CampaignContentType>('ugc');
   const [visibility, setVisibility] = useState<CampaignVisibility>('public');
   const [categoryId, setCategoryId] = useState('');
+  const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [rewardType, setRewardType] = useState<RewardType>('per_view');
+  const [goals, setGoals] = useState('');
+  const [audience, setAudience] = useState('');
   const [title, setTitle] = useState('');
   const [cover, setCover] = useState<PickedImage | null>(null);
   const [coverError, setCoverError] = useState<string | null>(null);
@@ -87,7 +101,9 @@ export function CreateCampaignScreen() {
   const [references, setReferences] = useState('');
 
   const selectedCategory = categories.data?.find((category) => category.id === categoryId);
-  const basicsValid = title.trim().length > 2 && Boolean(categoryId) && Boolean(endDate);
+  // The end must come after the start (today when no start date is chosen).
+  const scheduleValid = !endDate || endDate > (startDate || new Date().toISOString().slice(0, 10));
+  const basicsValid = title.trim().length > 2 && Boolean(categoryId) && Boolean(endDate) && scheduleValid;
   // The per-creator maximum is optional (empty = no cap) but can never exceed the whole budget.
   const capValid = dollarsToMoney(maxPerCreator).minorUnits <= dollarsToMoney(budget).minorUnits;
   const rewardsValid =
@@ -109,20 +125,19 @@ export function CreateCampaignScreen() {
   }
 
   async function createDraft() {
-    const context = [
-      brief.trim(),
-      `Campaign type: ${campaignType === 'ugc' ? 'UGC' : 'Clipping'}.`,
-      `Category: ${selectedCategory?.name ?? ''}.`,
-    ].join('\n\n');
     const input: CreateCampaignInput = {
       title: title.trim(),
       platforms,
       contentType: campaignType,
       visibility,
       categoryId,
+      startDate: startDate ? new Date(`${startDate}T00:00:00`).toISOString() : undefined,
       endDate: new Date(`${endDate}T23:59:59`).toISOString(),
       coverImageUrl: cover?.url,
-      brief: context,
+      brief: brief.trim(),
+      goals,
+      audience,
+      rewardType,
       ratePerThousandViews: dollarsToMoney(reward),
       budget: dollarsToMoney(budget),
       perCreatorCap: dollarsToMoney(maxPerCreator).minorUnits > 0 ? dollarsToMoney(maxPerCreator) : dollarsToMoney(budget),
@@ -164,7 +179,11 @@ export function CreateCampaignScreen() {
           campaignType={campaignType}
           visibility={visibility}
           category={selectedCategory?.name ?? ''}
+          startDate={startDate}
           endDate={endDate}
+          goals={goals}
+          audience={audience}
+          rewardType={rewardType}
           platforms={platforms}
           maxPerCreator={dollarsToMoney(maxPerCreator)}
           budget={dollarsToMoney(budget)}
@@ -189,7 +208,10 @@ export function CreateCampaignScreen() {
               categoryId={categoryId}
               categories={categories.data ?? []}
               categoriesLoading={categories.isPending}
+              startDate={startDate}
               endDate={endDate}
+              scheduleValid={scheduleValid}
+              onStartDateChange={setStartDate}
               title={title}
               cover={cover}
               coverError={coverError}
@@ -207,6 +229,8 @@ export function CreateCampaignScreen() {
             <RewardsStep
               budget={budget}
               reward={reward}
+              rewardType={rewardType}
+              onRewardTypeChange={setRewardType}
               platforms={platforms}
               maxPerCreator={maxPerCreator}
               capValid={capValid}
@@ -227,6 +251,10 @@ export function CreateCampaignScreen() {
               contentRules={contentRules}
               ruleDraft={ruleDraft}
               references={references}
+              goals={goals}
+              audience={audience}
+              onGoalsChange={setGoals}
+              onAudienceChange={setAudience}
               onBriefChange={setBrief}
               onHashtagsChange={setHashtags}
               onHashtagDraftChange={setHashtagDraft}
@@ -272,7 +300,10 @@ interface BasicsProps {
   categoryId: string;
   categories: CampaignCategory[];
   categoriesLoading: boolean;
+  startDate: string;
   endDate: string;
+  scheduleValid: boolean;
+  onStartDateChange: (value: string) => void;
   title: string;
   cover: PickedImage | null;
   coverError: string | null;
@@ -324,7 +355,15 @@ function BasicsStep(props: BasicsProps) {
           {props.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
         </select>
       </label>
-      <Field label="Campaign End Date" type="date" min={new Date().toISOString().slice(0, 10)} value={props.endDate} onChange={(event) => props.onEndDateChange(event.target.value)} />
+      <Field label="Campaign Start Date (optional — starts today if empty)" type="date" min={new Date().toISOString().slice(0, 10)} value={props.startDate} onChange={(event) => props.onStartDateChange(event.target.value)} />
+      <Field
+        label="Campaign End Date"
+        type="date"
+        min={props.startDate || new Date().toISOString().slice(0, 10)}
+        value={props.endDate}
+        onChange={(event) => props.onEndDateChange(event.target.value)}
+        error={props.scheduleValid ? undefined : 'The end date must be after the start date.'}
+      />
       <Field label="Campaign Title" placeholder="e.g. Summer Skincare Launch" value={props.title} onChange={(event) => props.onTitleChange(event.target.value)} />
       <div className="flex flex-col gap-2">
         <p className="text-[13px] font-medium text-text-muted">Cover Image</p>
@@ -339,6 +378,8 @@ function BasicsStep(props: BasicsProps) {
 interface RewardsProps {
   budget: string;
   reward: string;
+  rewardType: RewardType;
+  onRewardTypeChange: (value: RewardType) => void;
   platforms: SocialPlatform[];
   maxPerCreator: string;
   capValid: boolean;
@@ -355,7 +396,12 @@ function RewardsStep(props: RewardsProps) {
     <div className="flex flex-col gap-5">
       <StepHeading title="Reward & Platforms" subtitle="Set your budget and where creators should post." />
       <Field label="Total Reward Budget" inputMode="decimal" placeholder="0.00" value={props.budget} onChange={(event) => props.onBudgetChange(event.target.value)} />
-      <Field label="Reward Per 1,000 Views" inputMode="decimal" placeholder="0.00" value={props.reward} onChange={(event) => props.onRewardChange(event.target.value)} />
+      <div className="flex flex-col gap-2">
+        <p className="text-[13px] font-medium text-text-muted">How creators are paid</p>
+        <SegmentedToggle options={REWARD_TYPE_OPTIONS} value={props.rewardType} onChange={props.onRewardTypeChange} ariaLabel="How creators are paid" />
+        <p className="text-xs text-text-muted">{REWARD_TYPE_HINT[props.rewardType]}</p>
+      </div>
+      <Field label={props.rewardType === 'per_item' ? 'Reward Per Approved Post' : 'Reward Per 1,000 Views'} inputMode="decimal" placeholder="0.00" value={props.reward} onChange={(event) => props.onRewardChange(event.target.value)} />
       <div className="flex flex-col gap-1.5">
         <Field label="Maximum Reward Per Creator (optional)" inputMode="decimal" placeholder="0.00" value={props.maxPerCreator} onChange={(event) => props.onMaxPerCreatorChange(event.target.value)} />
         <p className={props.capValid ? 'text-xs text-text-muted' : 'text-xs text-danger'}>
@@ -374,6 +420,10 @@ function RewardsStep(props: RewardsProps) {
 
 interface RequirementsProps {
   brief: string;
+  goals: string;
+  audience: string;
+  onGoalsChange: (value: string) => void;
+  onAudienceChange: (value: string) => void;
   hashtags: string[];
   hashtagDraft: string;
   mentions: string[];
@@ -399,6 +449,8 @@ function RequirementsStep(props: RequirementsProps) {
     <div className="flex flex-col gap-5">
       <StepHeading title="Content Requirements" subtitle="Give creators a clear brief and posting guidelines." />
       <Textarea label="Campaign Brief" placeholder="Describe what creators should make…" value={props.brief} onChange={(event) => props.onBriefChange(event.target.value)} />
+      <Textarea label="Campaign Goals (Optional)" placeholder="e.g. Drive awareness of the summer range" maxLength={2000} value={props.goals} onChange={(event) => props.onGoalsChange(event.target.value)} />
+      <Textarea label="Target Audience (Optional)" placeholder="e.g. Women 18–30 interested in skincare" maxLength={2000} value={props.audience} onChange={(event) => props.onAudienceChange(event.target.value)} />
       <div className="flex flex-col gap-2">
         <p className="text-[13px] font-medium text-text-muted">Content Rules</p>
         <div className="flex gap-2">
@@ -488,7 +540,11 @@ interface ReviewProps {
   campaignType: CampaignContentType;
   visibility: CampaignVisibility;
   category: string;
+  startDate: string;
   endDate: string;
+  goals: string;
+  audience: string;
+  rewardType: RewardType;
   platforms: SocialPlatform[];
   maxPerCreator: Money;
   budget: Money;
@@ -513,16 +569,19 @@ function ReviewStep(props: ReviewProps) {
         ['Campaign Type', props.campaignType === 'ugc' ? 'UGC' : 'Clipping'],
         ['Visibility', props.visibility === 'public' ? 'Public' : 'Invite only'],
         ['Category', props.category],
+        ['Start Date', props.startDate ? formatDateDMY(props.startDate) : 'Today'],
         ['End Date', formatDateDMY(props.endDate)],
       ]} />
       <ReviewSection title="Reward & Platforms" onEdit={() => props.onEdit(2)} rows={[
         ['Total Budget', formatMoney(props.budget)],
-        ['Reward', formatRatePerThousandViews(props.reward)],
+        ['Reward', formatCampaignReward({ rewardType: props.rewardType, ratePerThousandViews: props.reward })],
         ['Max Per Creator', props.maxPerCreator.minorUnits > 0 ? formatMoney(props.maxPerCreator) : 'No limit'],
         ['Platforms', platformsLabel(props.platforms)],
       ]} />
       <ReviewSection title="Content Requirements" onEdit={() => props.onEdit(3)} rows={[
         ['Brief', props.brief],
+        ['Goals', props.goals.trim() || '—'],
+        ['Audience', props.audience.trim() || '—'],
         ['Content Rules', props.contentRules.join(' • ') || '—'],
         ['Hashtags', props.hashtags || '—'],
         ['Mentions', props.mentions || '—'],
@@ -626,7 +685,7 @@ function CampaignLive({ campaign, onView, onDashboard }: { campaign: Campaign; o
       <PageHeader title="Your campaign is live!" subtitle="Creators can now discover and submit content for it." />
       <h2 className="font-display text-xl font-semibold">{campaign.title}</h2>
       <Card className="flex w-full flex-col gap-3">
-        <ReviewLine label="Reward per 1K Views" value={formatRatePerThousandViews(campaign.ratePerThousandViews)} />
+        <ReviewLine label="Reward" value={formatCampaignReward(campaign)} />
         <ReviewLine label="Platforms" value={platformsLabel(campaign.platforms)} />
         <ReviewLine label="Total Budget" value={formatMoney(campaign.budget)} />
       </Card>

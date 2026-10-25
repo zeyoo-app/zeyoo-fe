@@ -9,11 +9,22 @@ import {
   Button,
   Card,
   ChoiceChips,
+  Switch,
   Field,
   PageHeader,
   type Choice,
 } from '@/design-system';
-import type { CampaignInvitation, CreatorDirectoryEntry } from '@/shared/api';
+import type { CampaignInvitation, CreatorDirectoryEntry, SocialPlatform } from '@/shared/api';
+
+type PlatformFilter = 'any' | SocialPlatform;
+
+const PLATFORM_FILTERS: Choice<PlatformFilter>[] = [
+  { value: 'any', label: 'All platforms' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'youtube', label: 'YouTube' },
+  { value: 'snapchat', label: 'Snapchat' },
+];
 
 import {
   useBrandCampaigns,
@@ -41,7 +52,12 @@ export function CreatorDirectoryScreen() {
   const [email, setEmail] = useState('');
   const [pickedCampaignId, setPickedCampaignId] = useState<string | null>(null);
 
-  const directory = useCreatorDirectory();
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('any');
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const directory = useCreatorDirectory({
+    platform: platformFilter === 'any' ? undefined : platformFilter,
+    verifiedOnly,
+  });
   const campaigns = useBrandCampaigns();
   const liveCampaigns = useMemo(
     () => (campaigns.data ?? []).filter((campaign) => campaign.status === 'live'),
@@ -149,6 +165,16 @@ export function CreatorDirectoryScreen() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
+            <ChoiceChips<PlatformFilter>
+              accessibilityLabel="Filter by platform"
+              choices={PLATFORM_FILTERS}
+              value={platformFilter}
+              onChange={setPlatformFilter}
+            />
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm text-text">Verified creators only</span>
+              <Switch checked={verifiedOnly} onChange={setVerifiedOnly} label="Verified creators only" />
+            </div>
             <AsyncContent isLoading={directory.isLoading} isError={directory.isError} data={directory.data}>
               {(creators) => {
                 const term = query.trim().toLowerCase();
@@ -156,7 +182,7 @@ export function CreatorDirectoryScreen() {
                   (creator) => !term || `${creator.displayName} ${creator.handle}`.toLowerCase().includes(term),
                 );
                 return results.length === 0 ? (
-                  <p className="text-sm text-text-muted">No creators found.</p>
+                  <p className="text-sm text-text-muted">No creators found. Try a different name, or loosen the filters.</p>
                 ) : (
                   <div className="flex flex-col gap-3">
                     {results.map((creator) => (
@@ -195,7 +221,10 @@ function CreatorRow({
       <Avatar name={creator.displayName} src={creator.avatarUrl} />
       <div className="min-w-0 flex-1">
         <p className="font-medium text-text">{creator.displayName}</p>
-        <p className="truncate text-xs text-text-muted">{creator.handle}</p>
+        <p className="truncate text-xs text-text-muted">
+          {creator.handle}
+          {creator.verified ? ' · Verified' : ''}
+        </p>
       </div>
       <Button
         size="sm"

@@ -63,6 +63,10 @@ import type {
   ApplyToCampaignInput,
   ReviewApplicationInput,
   CreatorInvitation,
+  CreatorDirectoryFilter,
+  UpdateCampaignInput,
+  InviteTeamMemberInput,
+  TeamRole,
   VideoContentType,
   VideoUploadTicket,
   UploadedVideo,
@@ -121,6 +125,16 @@ export interface ZeyooApi {
   /** Confirms the bytes arrived; the returned URL can then be submitted as an upload. */
   completeVideoUpload(uploadId: string): Promise<UploadedVideo>;
 
+  /** Edits a campaign; a live one keeps its money and reward terms. */
+  updateCampaign(input: UpdateCampaignInput): Promise<Campaign>;
+  /** The campaign summary report as CSV text (contract §1.2). */
+  getCampaignReportCsv(campaignId: string): Promise<string>;
+
+  // Team
+  inviteTeamMember(input: InviteTeamMemberInput): Promise<void>;
+  updateTeamMemberRole(input: { memberId: string; role: TeamRole }): Promise<void>;
+  removeTeamMember(memberId: string): Promise<void>;
+
   // Applications & invitations
   getMyApplications(): Promise<MyApplication[]>;
   applyToCampaign(input: ApplyToCampaignInput): Promise<MyApplication>;
@@ -156,7 +170,7 @@ export interface ZeyooApi {
   connectSocial(platform: CreatorProfile['socialAccounts'][number]['platform']): Promise<CreatorProfile>;
 
   // Brand discovery & invitations
-  getCreatorDirectory(): Promise<CreatorDirectoryEntry[]>;
+  getCreatorDirectory(filter?: CreatorDirectoryFilter): Promise<CreatorDirectoryEntry[]>;
   inviteCreator(input: InviteCreatorInput): Promise<void>;
   getCampaignInvitations(campaignId: string): Promise<CampaignInvitation[]>;
   revokeInvitation(input: RevokeInvitationInput): Promise<void>;

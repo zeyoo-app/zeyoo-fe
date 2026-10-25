@@ -1,6 +1,9 @@
 'use client';
 
-import { AsyncContent, Badge, Card, EmptyState, PageHeader, ProgressBar, StatCard } from '@/design-system';
+import { useState } from 'react';
+
+import { AsyncContent, Badge, Button, Card, EmptyState, PageHeader, ProgressBar, StatCard } from '@/design-system';
+import { useApi } from '@/shared/api';
 import { formatCount, formatMoney } from '@/shared/money/money';
 import { BackButton } from '@/shared/nav/BackButton';
 
@@ -8,6 +11,29 @@ import { useCampaignReport } from './hooks';
 
 export function CampaignReportScreen({ campaignId }: { campaignId: string }) {
   const query = useCampaignReport(campaignId);
+  const api = useApi();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  /** Downloads the summary as a CSV file (contract §1.2). */
+  async function download(title: string) {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const csv = await api.getCampaignReportCsv(campaignId);
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+      link.href = url;
+      link.download = `zeyoo-report-${slug || 'campaign'}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : 'Could not export the report.');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <>
@@ -17,7 +43,16 @@ export function CampaignReportScreen({ campaignId }: { campaignId: string }) {
       <AsyncContent isLoading={query.isLoading} isError={query.isError} data={query.data}>
         {(report) => (
           <>
-            <PageHeader title={report.title} subtitle="Campaign report" />
+            <PageHeader
+              title={report.title}
+              subtitle="Campaign report"
+              action={
+                <Button variant="secondary" fullWidth={false} loading={exporting} onClick={() => void download(report.title)}>
+                  Download CSV
+                </Button>
+              }
+            />
+            {exportError ? <p className="mb-3 text-xs text-danger">{exportError}</p> : null}
             <div className="grid grid-cols-2 gap-3">
               <StatCard label="Total views" value={formatCount(report.totalViews)} />
               <StatCard label="Paid to creators" value={formatMoney(report.spent)} />
