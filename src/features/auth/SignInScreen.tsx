@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 import { Button, Field } from '@/design-system';
-import type { Role } from '@/shared/api';
 import { isCompletePhone, normalizePhone } from '@/shared/format/phone';
 
 import { AuthTopShell, OrDivider } from './AuthShell';
@@ -18,9 +17,9 @@ import { StepCode } from './StepCode';
 import { useSignIn } from './hooks';
 
 /**
- * Passwordless sign-in and sign-up through an emailed or texted one-time code. An
- * address or number with no account yet is created once its code is verified, which
- * is why the account type is asked here too.
+ * Passwordless sign-in through an emailed or texted one-time code. It never creates
+ * an account: an address or number with none stays here with a clear message and a
+ * way to create one.
  */
 export function SignInScreen() {
   const {
@@ -33,12 +32,11 @@ export function SignInScreen() {
     isPending,
     error,
     notice,
-  } = useSignIn();
+    accountMissing,
+  } = useSignIn({ intent: 'sign_in' });
   const [channel, setChannel] = useState<AuthChannel>('email');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  // A returning user's role comes from the server; the role picker lives on the sign-up screen.
-  const role: Role = 'creator';
   const [awaitingCode, setAwaitingCode] = useState(false);
 
   const { remaining, start } = useCooldown();
@@ -47,8 +45,9 @@ export function SignInScreen() {
     if (waitSeconds !== null) start(waitSeconds);
   }, [waitSeconds, start, error]);
   // While the server is making us wait, show the live countdown instead of the frozen message.
-  const identifierError =
-    waitSeconds === null
+  const identifierError = accountMissing
+    ? null
+    : waitSeconds === null
       ? error
       : remaining > 0
         ? `Please wait ${remaining} ${remaining === 1 ? 'second' : 'seconds'} before requesting another code.`
@@ -88,8 +87,8 @@ export function SignInScreen() {
           channel={channel}
           onVerify={(code) =>
             isPhone
-              ? signInWithPhoneCode(normalizePhone(phone), code, role)
-              : signInWithCode(email.trim(), code, role)
+              ? signInWithPhoneCode(normalizePhone(phone), code)
+              : signInWithCode(email.trim(), code)
           }
           isPending={isPending}
           error={error}
@@ -99,11 +98,21 @@ export function SignInScreen() {
       ) : (
         <>
           <div className="flex flex-col gap-2.5">
-            <SocialAuthButtons role={role} />
+            <SocialAuthButtons />
             <AuthChannelSwitch value={channel} onChange={switchChannel} />
           </div>
 
           <OrDivider label="or" />
+
+          {accountMissing ? (
+            <div role="alert" className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-4">
+              <p className="text-[15px] font-semibold text-text">No account found</p>
+              <p className="text-sm text-text-muted">{error}</p>
+              <Button size="sm" href="/sign-up" className="mt-1">
+                Create an account
+              </Button>
+            </div>
+          ) : null}
 
           {isPhone ? (
             <PhoneInput value={phone} onChange={setPhone} error={identifierError} />
