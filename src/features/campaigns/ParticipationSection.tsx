@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { Badge, Button, Card, Field, SegmentedToggle, Textarea } from '@/design-system';
+import { useApi } from '@/shared/api';
+import { uploadVideo } from '@/shared/media/videoUpload';
 import type { Campaign, CreatorSubmission, MyApplication, SubmissionKind } from '@/shared/api';
 
 import {
@@ -19,7 +21,7 @@ import {
 
 const KIND_OPTIONS: { value: SubmissionKind; label: string }[] = [
   { value: 'link', label: 'Paste link' },
-  { value: 'upload', label: 'Upload' },
+  { value: 'upload', label: 'Upload video' },
 ];
 
 const SUBMISSION_STATUS: Record<CreatorSubmission['status'], { label: string; tone: 'warning' | 'success' | 'danger' | 'neutral' }> = {
@@ -176,16 +178,19 @@ function SubmitForm({ campaignId, revisionOf }: { campaignId: string; revisionOf
   const resubmit = useResubmit();
   const [kind, setKind] = useState<SubmissionKind>('link');
   const [postUrl, setPostUrl] = useState('');
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const pending = submit.isPending || resubmit.isPending;
   const error = submit.error ?? resubmit.error;
-  const canSubmit = postUrl.trim().length > 4 && !pending;
+  const value = kind === 'link' ? postUrl.trim() : uploadedUrl;
+  const canSubmit = (kind === 'link' ? isPostUrl(postUrl) : Boolean(uploadedUrl)) && !pending;
 
   function onSubmit() {
+    if (!value) return;
     const done = { onSuccess: () => router.replace('/creator/submissions') };
     if (revisionOf) {
-      resubmit.mutate({ submissionId: revisionOf, postUrl: postUrl.trim(), kind }, done);
+      resubmit.mutate({ submissionId: revisionOf, postUrl: value, kind }, done);
     } else {
-      submit.mutate({ campaignId, postUrl: postUrl.trim(), kind }, done);
+      submit.mutate({ campaignId, postUrl: value, kind }, done);
     }
   }
 
@@ -194,12 +199,17 @@ function SubmitForm({ campaignId, revisionOf }: { campaignId: string; revisionOf
       <div className="max-w-xs">
         <SegmentedToggle options={KIND_OPTIONS} value={kind} onChange={setKind} ariaLabel="Submission type" />
       </div>
-      <Field
-        placeholder={kind === 'link' ? 'https://instagram.com/p/…' : 'Uploaded file URL'}
-        value={postUrl}
-        onChange={(event) => setPostUrl(event.target.value)}
-        aria-label={revisionOf ? 'Revised post URL' : 'Post URL'}
-      />
+      {kind === 'link' ? (
+        <Field
+          placeholder="https://instagram.com/p/…"
+          value={postUrl}
+          onChange={(event) => setPostUrl(event.target.value)}
+          aria-label={revisionOf ? 'Revised post URL' : 'Post URL'}
+          error={postUrl.trim() && !isPostUrl(postUrl) ? 'Paste the full link to your post, starting with https://' : undefined}
+        />
+      ) : (
+        <VideoUploadField onUploaded={setUploadedUrl} />
+      )}
       {error ? <p className="text-xs text-danger">{error instanceof Error ? error.message : 'Could not submit.'}</p> : null}
       <div>
         <Button fullWidth={false} loading={pending} disabled={!canSubmit} onClick={onSubmit}>
@@ -207,5 +217,78 @@ function SubmitForm({ campaignId, revisionOf }: { campaignId: string; revisionOf
         </Button>
       </div>
     </div>
+  );
+}
+
+/** A real web link to the post — not just any text with a dot in it. */
+function isPostUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname.includes('.');
+  } catch {
+    return false;
+  }
+}
+
+type UploadState =
+  | { phase: 'idle' }
+  | { phase: 'uploading'; name: string; progress: number }
+  | { phase: 'done'; name: string }
+  | { phase: 'error'; message: string };
+
+/**
+ * Chooses a video and uploads it straight to storage with live progress (contract §1.3,
+ * "upload or link"). Reports the stored URL once the server has confirmed it arrived.
+ */
+function VideoUploadField({ onUploaded }: { onUploaded: (url: string | null) => void }) {
+  const api = useApi();
+  const [state, setState] = useState<UploadState>({ phase: 'idle' });
+
+  async function onFile(file: File | undefined) {
+    if (!file) return;
+    onUploaded(null);
+    setState({ phase: 'uploading', name: file.name, progress: 0 });
+    try {
+      const uploaded = await uploadVideo(api, file, (progress) =>
+        setState({ phase: 'uploading', name: file.name, progress }),
+      );
+      setState({ phase: 'done', name: file.name });
+      onUploaded(uploaded.url);
+    } catch (error) {
+      setState({ phase: 'error', message: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  const percent = state.phase === 'uploading' ? Math.round(state.progress * 100) : 0;
+  return (
+    <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-surface-raised p-6 text-center">
+      <input
+        type="file"
+        accept="video/mp4,video/quicktime,video/webm"
+        className="sr-only"
+        disabled={state.phase === 'uploading'}
+        onChange={(event) => void onFile(event.target.files?.[0])}
+      />
+      {state.phase === 'uploading' ? (
+        <>
+          <span className="text-sm text-text">{state.name}</span>
+          <span className="h-1.5 w-full overflow-hidden rounded-full bg-surface">
+            <span className="block h-full bg-primary transition-[width]" style={{ width: `${percent}%` }} />
+          </span>
+          <span className="text-xs text-text-muted">{percent >= 100 ? 'Finishing…' : `Uploading… ${percent}%`}</span>
+        </>
+      ) : state.phase === 'done' ? (
+        <>
+          <span className="text-sm text-text">{state.name}</span>
+          <span className="text-xs text-green-text">Uploaded · click to choose a different video</span>
+        </>
+      ) : (
+        <>
+          <span className="text-sm text-green-text">+ Choose a video to upload</span>
+          <span className="text-xs text-text-muted">MP4, MOV or WebM, up to 500 MB</span>
+          {state.phase === 'error' ? <span className="text-xs text-danger">{state.message}</span> : null}
+        </>
+      )}
+    </label>
   );
 }

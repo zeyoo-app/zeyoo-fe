@@ -334,7 +334,14 @@ function SubmissionRow({ submission, campaignId }: { submission: Submission; cam
             {submission.creatorHandle}
             {submission.accountVerified ? ' · Verified account' : ' · Unverified account'}
           </p>
-          <p className="truncate text-xs text-text-muted">{submission.postUrl}</p>
+          <a
+            href={submission.postUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block truncate text-xs text-green-text hover:underline"
+          >
+            {submission.kind === 'upload' ? '▶ Watch uploaded video' : submission.postUrl}
+          </a>
         </div>
         <Badge tone={STATUS[submission.status].tone}>{STATUS[submission.status].label}</Badge>
       </div>

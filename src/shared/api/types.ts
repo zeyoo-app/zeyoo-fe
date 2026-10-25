@@ -802,3 +802,24 @@ export interface CreatorInvitation {
   platform: Campaign['platform'];
   createdAt: string;
 }
+
+// -------------------------------------------------------------------------------------
+// Video uploads (submission content, contract §1.3 "upload or link")
+// -------------------------------------------------------------------------------------
+
+export type VideoContentType = 'video/mp4' | 'video/quicktime' | 'video/webm';
+
+/** Where to PUT the video bytes, and the URL the video will have once uploaded. */
+export interface VideoUploadTicket {
+  id: string;
+  uploadUrl: string;
+  uploadHeaders: Record<string, string>;
+  url: string;
+}
+
+export interface UploadedVideo {
+  id: string;
+  url: string;
+  contentType: string;
+  size: number;
+}

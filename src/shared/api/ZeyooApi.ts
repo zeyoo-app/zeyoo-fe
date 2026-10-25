@@ -63,6 +63,9 @@ import type {
   ApplyToCampaignInput,
   ReviewApplicationInput,
   CreatorInvitation,
+  VideoContentType,
+  VideoUploadTicket,
+  UploadedVideo,
   UpdateBrandProfileInput,
   UpdateProfileInput,
   WalletSummary,
@@ -113,6 +116,10 @@ export interface ZeyooApi {
   submitParticipation(input: SubmitParticipationInput): Promise<CreatorSubmission>;
   /** Sends a revised post after the brand asked for changes. */
   resubmitSubmission(input: ResubmitInput): Promise<CreatorSubmission>;
+  /** Reserves a direct-to-storage video upload; the bytes are PUT to `uploadUrl`. */
+  startVideoUpload(input: { contentType: VideoContentType; size: number }): Promise<VideoUploadTicket>;
+  /** Confirms the bytes arrived; the returned URL can then be submitted as an upload. */
+  completeVideoUpload(uploadId: string): Promise<UploadedVideo>;
 
   // Applications & invitations
   getMyApplications(): Promise<MyApplication[]>;
