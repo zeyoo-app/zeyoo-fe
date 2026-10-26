@@ -48,6 +48,7 @@ import type {
   LedgerEntry,
   NotificationPreferences,
   OAuthSignInInput,
+  SignInIntent,
   OpenDisputeInput,
   ConnectablePlatform,
   RecordViewsInput,
@@ -83,13 +84,13 @@ import type {
  */
 export interface ZeyooApi {
   /** Email a one-time code for sign-in or sign-up (backend: POST /auth/email/code). */
-  requestEmailCode(input: { email: string }): Promise<CodeSent>;
+  requestEmailCode(input: { email: string; intent?: SignInIntent }): Promise<CodeSent>;
   /** Verify an emailed code, creating the account when the address is new (backend: POST /auth/email/code/verify). */
-  verifyEmailCode(input: { email: string; code: string; role: Role }): Promise<Session>;
+  verifyEmailCode(input: { email: string; code: string; role?: Role }): Promise<Session>;
   /** Text a one-time code (backend: POST /auth/phone/code). */
-  requestPhoneCode(input: { phone: string }): Promise<CodeSent>;
+  requestPhoneCode(input: { phone: string; intent?: SignInIntent }): Promise<CodeSent>;
   /** Verify a texted code, creating the account when the number is new. */
-  verifyPhoneCode(input: { phone: string; code: string; role: Role }): Promise<Session>;
+  verifyPhoneCode(input: { phone: string; code: string; role?: Role }): Promise<Session>;
   /** Sign in (or sign up) with a Google/Apple ID token (backend: POST /auth/oauth/:provider). */
   oauthSignIn(input: OAuthSignInInput): Promise<Session>;
 

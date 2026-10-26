@@ -57,9 +57,15 @@ export interface OAuthSignInInput {
   provider: OAuthProvider;
   /** The provider-issued ID token obtained on-device by the native SDK. */
   idToken: string;
-  /** Used only when this is a brand-new account; ignored for returning users. */
-  role: Role;
+  /**
+   * Used only when this is a brand-new account; ignored for returning users. Left out,
+   * a new account is refused with ACCOUNT_TYPE_REQUIRED so the user can choose.
+   */
+  role?: Role;
 }
+
+/** Which screen asked for a code: sign-in refuses an address with no account. */
+export type SignInIntent = 'sign_in' | 'sign_up';
 
 // -------------------------------------------------------------------------------------
 // Campaigns

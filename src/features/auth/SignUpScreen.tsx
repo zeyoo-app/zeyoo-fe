@@ -44,7 +44,7 @@ export function SignUpScreen() {
     isPending,
     error,
     notice,
-  } = useSignIn({ navigate: false });
+  } = useSignIn({ navigate: false, intent: 'sign_up' });
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role>('brand');
   const [channel, setChannel] = useState<AuthChannel>('email');

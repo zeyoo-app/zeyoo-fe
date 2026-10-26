@@ -8,8 +8,11 @@ import { useI18n } from '@/shared/i18n';
 import { GoogleIcon } from './BrandIcons';
 import { useOAuthSignIn } from './hooks';
 
-/** Google sign-in. The chosen role applies only to brand-new accounts. */
-export function SocialAuthButtons({ role }: { role: Role }) {
+/**
+ * Google sign-in. The role (sign-up only) applies only to brand-new accounts; without
+ * one, a new Google account is asked which kind of account it is after the redirect.
+ */
+export function SocialAuthButtons({ role }: { role?: Role }) {
   const { t } = useI18n();
   const { signInWith, pendingProvider, error } = useOAuthSignIn();
   const busy = pendingProvider !== null;

@@ -1,7 +1,9 @@
 import { SESSION_EXPIRED_EVENT } from '../auth/sessionEvents';
 import type { Money } from '../money/money';
 import type { ZeyooApi } from './ZeyooApi';
+import { ApiError } from './errors';
 import type {
+  Role,
   TeamMember,
   CampaignApplication,
   CreatorInvitation,
@@ -112,7 +114,7 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       headers: current ? { Authorization: `Bearer ${current}` } : {},
       body: form,
     });
-    if (!response.ok) throw new Error(await apiErrorMessage(response));
+    if (!response.ok) throw await apiError(response);
     return ((await response.json()) as { url: string }).url;
   }
 
@@ -136,7 +138,7 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
     if (response.status === 401 && authenticate && typeof window !== 'undefined') {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
-    if (!response.ok) throw new Error(await apiErrorMessage(response));
+    if (!response.ok) throw await apiError(response);
     if (response.status === 204) return undefined as T;
     return response.json() as Promise<T>;
   }
@@ -173,21 +175,21 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
   }
 
   return {
-    async requestEmailCode({ email }) { return request<CodeSent>('POST', '/auth/email/code', { email }, false); },
+    async requestEmailCode({ email, intent }) { return request<CodeSent>('POST', '/auth/email/code', { email, intent }, false); },
     async verifyEmailCode({ email, code, role }) {
       return establishSession(await request<BackendTokens>('POST', '/auth/email/code/verify', {
-        email, code, userType: role === 'brand' ? 'BRAND_USER' : 'CREATOR',
+        email, code, userType: userTypeOf(role),
       }, false));
     },
-    async requestPhoneCode({ phone }) { return request<CodeSent>('POST', '/auth/phone/code', { phone }, false); },
+    async requestPhoneCode({ phone, intent }) { return request<CodeSent>('POST', '/auth/phone/code', { phone, intent }, false); },
     async verifyPhoneCode({ phone, code, role }) {
       return establishSession(await request<BackendTokens>('POST', '/auth/phone/code/verify', {
-        phone, code, userType: role === 'brand' ? 'BRAND_USER' : 'CREATOR',
+        phone, code, userType: userTypeOf(role),
       }, false));
     },
     async oauthSignIn({ provider, idToken, role }) {
       return establishSession(await request<BackendTokens>('POST', `/auth/oauth/${provider}`, {
-        idToken, userType: role === 'brand' ? 'BRAND_USER' : 'CREATOR',
+        idToken, userType: userTypeOf(role),
       }, false));
     },
     async setupBrand(input) {
@@ -434,11 +436,17 @@ export async function clearBackendSession() {
   await fetch('/api/auth/session', { method: 'DELETE' });
 }
 
-async function apiErrorMessage(response: Response) {
+async function apiError(response: Response): Promise<ApiError> {
   try {
-    const body = (await response.json()) as { message?: string | string[] };
-    return Array.isArray(body.message) ? body.message[0] ?? 'The request failed.' : body.message ?? 'The request failed.';
-  } catch { return `The request failed (${response.status}).`; }
+    const body = (await response.json()) as { message?: string | string[]; code?: string };
+    const message = Array.isArray(body.message) ? body.message[0] ?? 'The request failed.' : body.message ?? 'The request failed.';
+    return new ApiError(message, body.code);
+  } catch { return new ApiError(`The request failed (${response.status}).`); }
+}
+
+/** No role means "sign in only": the backend then refuses to create an account. */
+function userTypeOf(role?: Role) {
+  return role ? (role === 'brand' ? 'BRAND_USER' : 'CREATOR') : undefined;
 }
 
 function mapSession(account: BackendAccount): Session {

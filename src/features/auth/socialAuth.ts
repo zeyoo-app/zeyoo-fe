@@ -6,7 +6,8 @@ const CALLBACK_PATH = '/api/auth/callback/google';
 interface PendingGoogleSignIn {
   state: string;
   nonce: string;
-  role: Role;
+  /** Only set from the create-account screen; sign-in leaves it for the user to choose if new. */
+  role?: Role;
 }
 
 /** The redirect URI registered in Google Cloud Console for this origin. */
@@ -24,7 +25,7 @@ function randomToken(): string {
  * Google redirects back to `/api/auth/callback/google` with an ID token in the URL
  * fragment, which `completeGoogleSignIn` validates and hands to the backend.
  */
-export function startGoogleSignIn(role: Role): void {
+export function startGoogleSignIn(role?: Role): void {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   if (!clientId) throw new Error('NEXT_PUBLIC_GOOGLE_CLIENT_ID is not configured.');
 
@@ -47,7 +48,7 @@ export function startGoogleSignIn(role: Role): void {
  * Validates Google's redirect (state + nonce) and returns the ID token and the role
  * chosen before leaving. The backend still verifies the token's signature/audience.
  */
-export function completeGoogleSignIn(fragment: string): { idToken: string; role: Role } {
+export function completeGoogleSignIn(fragment: string): { idToken: string; role?: Role } {
   const raw = sessionStorage.getItem(STORAGE_KEY);
   sessionStorage.removeItem(STORAGE_KEY);
   if (!raw) throw new Error('No Google sign-in in progress.');
