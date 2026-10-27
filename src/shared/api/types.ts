@@ -23,8 +23,6 @@ export type OAuthProvider = 'google' | 'apple';
 export interface Session {
   userId: string;
   role: Role;
-  /** A Zeyoo staff account: lands in the admin console instead of an app role. */
-  isAdmin?: boolean;
   displayName: string;
   email: string;
   /** False right after sign-up until the emailed 6-digit code is confirmed. */
@@ -721,10 +719,24 @@ export interface AdminVerification {
   accounts: { platform: string; handle: string; verified: boolean }[];
 }
 
+/** Back-office roles. Super admin is the only one for now. */
+export type StaffRole = 'SUPER_ADMIN';
+
+export type StaffStatus = 'ACTIVE' | 'DEACTIVATED';
+
+/** The signed-in back-office account; a separate identity from an app {@link Session}. */
+export interface StaffSession {
+  staffId: string;
+  email: string;
+  role: StaffRole;
+}
+
 export interface AdminStaff {
   id: string;
-  email: string | null;
-  status: AdminUserStatus;
+  email: string;
+  role: StaffRole;
+  status: StaffStatus;
+  lastSignInAt: string | null;
   createdAt: string;
   isYou: boolean;
 }

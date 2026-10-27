@@ -4,3 +4,5 @@ export type { ZeyooApi } from './ZeyooApi';
 export type { Money } from '../money/money';
 export * from './types';
 export { ApiError, API_ERROR, errorCodeOf } from './errors';
+export { STAFF_SESSION_CHANNEL, clearBackendSession } from './backendApi';
+export type { SessionChannel } from './backendApi';

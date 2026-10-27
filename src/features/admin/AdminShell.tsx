@@ -26,9 +26,10 @@ import {
 } from 'lucide-react';
 
 import { Logo, cn } from '@/design-system';
-import { useAuthStore, useSignOutWhenExpired } from '@/shared/auth';
+import { STAFF_SESSION_EXPIRED_EVENT } from '@/shared/auth/sessionEvents';
 
 import { useAdminOverview } from './hooks';
+import { useStaffSession } from './staffSession';
 
 type QueueKey = 'withdrawals' | 'disputes' | 'fraud' | 'verifications';
 
@@ -116,26 +117,30 @@ function storeCollapsed(value: boolean): void {
   }
 }
 
-/** Staff-only frame. Anyone whose session is not an admin is sent back to their own app. */
+/** Staff-only frame. Without a back-office session, staff are sent to its sign-in. */
 export function AdminShell({ children }: { children: ReactNode }) {
-  useSignOutWhenExpired();
   const router = useRouter();
   const pathname = usePathname();
-  const status = useAuthStore((state) => state.status);
-  const session = useAuthStore((state) => state.session);
-  const signOut = useAuthStore((state) => state.signOut);
+  const status = useStaffSession((state) => state.status);
+  const session = useStaffSession((state) => state.staff);
+  const signOut = useStaffSession((state) => state.signOut);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   // The drawer is open only for the page it was opened on, so navigating closes it.
   const [drawerPath, setDrawerPath] = useState<string | null>(null);
   const drawerOpen = drawerPath === pathname;
   const setDrawerOpen = (open: boolean) => setDrawerPath(open ? pathname : null);
-  const allowed = status === 'authenticated' && session?.isAdmin === true;
+  const allowed = status === 'authenticated';
 
   useEffect(() => {
-    if (status === 'loading') return;
-    if (status === 'unauthenticated') router.replace('/sign-in');
-    else if (!session?.isAdmin) router.replace('/');
-  }, [status, session, router]);
+    if (status === 'unauthenticated') router.replace('/admin/sign-in');
+  }, [status, router]);
+
+  // The API gave up on the staff session (expired or deactivated): back to sign-in.
+  useEffect(() => {
+    const onExpired = (): void => signOut();
+    window.addEventListener(STAFF_SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(STAFF_SESSION_EXPIRED_EVENT, onExpired);
+  }, [signOut]);
 
   if (!allowed) {
     return <div className="min-h-dvh bg-bg" aria-busy />;
@@ -149,7 +154,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   };
   const handleSignOut = () => {
     signOut();
-    router.replace('/sign-in');
+    router.replace('/admin/sign-in');
   };
 
   return (
