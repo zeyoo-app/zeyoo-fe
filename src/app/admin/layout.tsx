@@ -1,5 +1,5 @@
-import { AdminShell } from '@/features/admin/AdminShell';
+import { BackOfficeProviders } from '@/features/admin/BackOfficeProviders';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <AdminShell>{children}</AdminShell>;
+export default function BackOfficeLayout({ children }: { children: React.ReactNode }) {
+  return <BackOfficeProviders>{children}</BackOfficeProviders>;
 }

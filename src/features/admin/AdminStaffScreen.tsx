@@ -3,11 +3,13 @@
 import { useState } from 'react';
 
 import { AsyncContent, Badge, Button, Card, Field, useConfirm } from '@/design-system';
-import type { AdminStaff } from '@/shared/api';
+import type { AdminStaff, StaffRole } from '@/shared/api';
 
 import { AdminPageHeader, DataTable, type Column } from './DataTable';
 import { formatDate } from './format';
 import { useAddStaff, useAdminStaff, useSetStaffActive } from './hooks';
+
+const ROLE_LABELS: Record<StaffRole, string> = { SUPER_ADMIN: 'Super admin' };
 
 export function AdminStaffScreen() {
   const query = useAdminStaff();
@@ -21,12 +23,12 @@ export function AdminStaffScreen() {
     const confirmed = await confirm({
       title: deactivating ? 'Remove staff access?' : 'Restore staff access?',
       message: deactivating
-        ? `${staff.email} will no longer be able to sign in to the admin console.`
-        : `${staff.email} will be able to sign in to the admin console again.`,
+        ? `${staff.email} will be signed out and can no longer sign in to the back office.`
+        : `${staff.email} will be able to sign in to the back office again.`,
       confirmLabel: deactivating ? 'Remove access' : 'Restore access',
       tone: deactivating ? 'danger' : undefined,
     });
-    if (confirmed) setActive.mutate({ userId: staff.id, active: !deactivating });
+    if (confirmed) setActive.mutate({ staffId: staff.id, active: !deactivating });
   };
 
   const columns: Column<AdminStaff>[] = [
@@ -38,6 +40,7 @@ export function AdminStaffScreen() {
         </span>
       ),
     },
+    { header: 'Role', cell: (staff) => ROLE_LABELS[staff.role] },
     {
       header: 'Access',
       cell: (staff) => (
@@ -48,6 +51,10 @@ export function AdminStaffScreen() {
     },
     { header: 'Added', cell: (staff) => formatDate(staff.createdAt) },
     {
+      header: 'Last sign-in',
+      cell: (staff) => (staff.lastSignInAt ? formatDate(staff.lastSignInAt) : 'Never'),
+    },
+    {
       header: '',
       className: 'text-end',
       cell: (staff) =>
@@ -56,7 +63,7 @@ export function AdminStaffScreen() {
             size="sm"
             variant={staff.status === 'ACTIVE' ? 'danger' : 'secondary'}
             fullWidth={false}
-            loading={setActive.isPending && setActive.variables?.userId === staff.id}
+            loading={setActive.isPending && setActive.variables?.staffId === staff.id}
             onClick={() => toggle(staff)}
           >
             {staff.status === 'ACTIVE' ? 'Remove access' : 'Restore access'}
@@ -69,7 +76,7 @@ export function AdminStaffScreen() {
     <>
       <AdminPageHeader
         title="Staff"
-        subtitle="Who can sign in to this console. Everyone here has full access, so add people carefully."
+        subtitle="Who can sign in to the back office. Everyone added is a super admin with full access, so add people carefully."
       />
       <Card className="mb-5 flex flex-col gap-3 p-4">
         <Field
@@ -80,8 +87,8 @@ export function AdminStaffScreen() {
           onChange={(event) => setEmail(event.target.value)}
         />
         <p className="text-xs text-text-muted">
-          They sign in at the normal sign-in page with this email and a code sent to it. An email that already
-          belongs to a creator or brand account cannot be reused.
+          They sign in at /admin/sign-in with this email and a code sent to it. Staff accounts are separate from
+          creator and brand accounts, so they need no app account.
         </p>
         {add.error ? (
           <p className="text-xs text-danger">

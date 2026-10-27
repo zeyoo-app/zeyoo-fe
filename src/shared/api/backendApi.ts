@@ -1,4 +1,4 @@
-import { SESSION_EXPIRED_EVENT } from '../auth/sessionEvents';
+import { SESSION_EXPIRED_EVENT, STAFF_SESSION_EXPIRED_EVENT } from '../auth/sessionEvents';
 import type { Money } from '../money/money';
 import type { ZeyooApi } from './ZeyooApi';
 import { ApiError } from './errors';
@@ -39,6 +39,7 @@ import type {
   NotificationPreferences,
   Session,
   SocialAccount,
+  StaffSession,
   Submission,
   ViewTrackingOutcome,
 } from './types';
@@ -68,7 +69,28 @@ const ZERO_USD: Money = { minorUnits: 0, currency: 'USD' };
 /** Platforms the backend only connects through the platform's own sign-in, never a typed handle. */
 const VERIFIED_ONLY_PLATFORMS: readonly string[] = ['instagram', 'tiktok', 'youtube', 'snapchat'];
 
-export function createBackendApi(baseUrl: string): ZeyooApi {
+interface BackendStaff { id: string; email: string; role: StaffSession['role'] }
+
+/**
+ * Where a client keeps its session. The app and the back office each have their own
+ * refresh cookie (behind `sessionRoutes`) and their own expiry event, so signing out
+ * of one never touches the other.
+ */
+export interface SessionChannel {
+  /** The Next route folder holding `refresh` and `session`, e.g. `/api/auth`. */
+  routes: string;
+  /** Window event fired when this session cannot be renewed. */
+  expiredEvent: string;
+}
+
+export const APP_SESSION_CHANNEL: SessionChannel = { routes: '/api/auth', expiredEvent: SESSION_EXPIRED_EVENT };
+
+export const STAFF_SESSION_CHANNEL: SessionChannel = {
+  routes: '/api/admin-auth',
+  expiredEvent: STAFF_SESSION_EXPIRED_EVENT,
+};
+
+export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_SESSION_CHANNEL): ZeyooApi {
   const root = baseUrl.replace(/\/$/, '');
 
   /** The creator's profile together with their connected accounts, which live on their own endpoint. */
@@ -85,7 +107,7 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
   let organizationName = 'Your organization';
 
   async function refreshAccessToken() {
-    const response = await fetch('/api/auth/refresh', { method: 'POST', cache: 'no-store' });
+    const response = await fetch(`${channel.routes}/refresh`, { method: 'POST', cache: 'no-store' });
     if (!response.ok) return null;
     const body = (await response.json()) as { accessToken: string };
     accessToken = body.accessToken;
@@ -136,20 +158,24 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
       if (renewed) return request<T>(method, path, body, true, false);
     }
     if (response.status === 401 && authenticate && typeof window !== 'undefined') {
-      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+      window.dispatchEvent(new Event(channel.expiredEvent));
     }
     if (!response.ok) throw await apiError(response);
     if (response.status === 204) return undefined as T;
     return response.json() as Promise<T>;
   }
 
-  async function establishSession(tokens: BackendTokens): Promise<Session> {
+  async function storeTokens(tokens: BackendTokens): Promise<void> {
     accessToken = tokens.accessToken;
-    await fetch('/api/auth/session', {
+    await fetch(`${channel.routes}/session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: tokens.refreshToken }),
     });
+  }
+
+  async function establishSession(tokens: BackendTokens): Promise<Session> {
+    await storeTokens(tokens);
     const account = await request<BackendAccount>('GET', '/me');
     rememberOrganization(account);
     return mapSession(account);
@@ -175,6 +201,12 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
   }
 
   return {
+    async requestStaffCode(email) { return request<CodeSent>('POST', '/admin/auth/code', { email }, false); },
+    async verifyStaffCode({ email, code }) {
+      await storeTokens(await request<BackendTokens>('POST', '/admin/auth/code/verify', { email, code }, false));
+      const staff = await request<BackendStaff>('GET', '/admin/auth/me');
+      return { staffId: staff.id, email: staff.email, role: staff.role };
+    },
     async requestEmailCode({ email, intent }) { return request<CodeSent>('POST', '/auth/email/code', { email, intent }, false); },
     async verifyEmailCode({ email, code, role }) {
       return establishSession(await request<BackendTokens>('POST', '/auth/email/code/verify', {
@@ -390,8 +422,8 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
     },
     async getAdminStaff() { return request<AdminStaff[]>('GET', '/admin/staff'); },
     async addAdminStaff(email) { await request('POST', '/admin/staff', { email }); },
-    async setAdminStaffActive({ userId, active }) {
-      await request('POST', `/admin/staff/${userId}/${active ? 'reactivate' : 'deactivate'}`);
+    async setAdminStaffActive({ staffId, active }) {
+      await request('POST', `/admin/staff/${staffId}/${active ? 'reactivate' : 'deactivate'}`);
     },
     async getAdminBilling() { return request<AdminBilling>('GET', '/admin/billing'); },
     async refundAdminCampaign(campaignId) { return request<AdminRefundOutcome>('POST', `/admin/campaigns/${campaignId}/refund`); },
@@ -432,8 +464,8 @@ export function createBackendApi(baseUrl: string): ZeyooApi {
   };
 }
 
-export async function clearBackendSession() {
-  await fetch('/api/auth/session', { method: 'DELETE' });
+export async function clearBackendSession(channel: SessionChannel = APP_SESSION_CHANNEL) {
+  await fetch(`${channel.routes}/session`, { method: 'DELETE' });
 }
 
 async function apiError(response: Response): Promise<ApiError> {
@@ -453,7 +485,6 @@ function mapSession(account: BackendAccount): Session {
   return {
     userId: account.id,
     role: account.type === 'BRAND_USER' ? 'brand' : 'creator',
-    isAdmin: account.type === 'ADMIN',
     displayName: account.organizations?.[0]?.name ?? account.email?.split('@')[0] ?? account.phone ?? 'Zeyoo user',
     email: account.email ?? '',
     emailVerified: account.emailVerifiedAt != null || account.phoneVerifiedAt != null,

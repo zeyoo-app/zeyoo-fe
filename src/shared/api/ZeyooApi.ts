@@ -25,6 +25,7 @@ import type {
   AdminPage,
   AdminRefundOutcome,
   AdminStaff,
+  StaffSession,
   AdminUserDetail,
   AdminVerification,
   AdminCampaign,
@@ -83,6 +84,10 @@ import type {
  * their own transport.
  */
 export interface ZeyooApi {
+  /** Email a back-office sign-in code to a staff address (backend: POST /admin/auth/code). */
+  requestStaffCode(email: string): Promise<CodeSent>;
+  /** Exchange a back-office code for a staff session (backend: POST /admin/auth/code/verify). */
+  verifyStaffCode(input: { email: string; code: string }): Promise<StaffSession>;
   /** Email a one-time code for sign-in or sign-up (backend: POST /auth/email/code). */
   requestEmailCode(input: { email: string; intent?: SignInIntent }): Promise<CodeSent>;
   /** Verify an emailed code, creating the account when the address is new (backend: POST /auth/email/code/verify). */
@@ -206,7 +211,7 @@ export interface ZeyooApi {
   reviewAdminVerification(input: { userId: string; approve: boolean; note?: string }): Promise<void>;
   getAdminStaff(): Promise<AdminStaff[]>;
   addAdminStaff(email: string): Promise<void>;
-  setAdminStaffActive(input: { userId: string; active: boolean }): Promise<void>;
+  setAdminStaffActive(input: { staffId: string; active: boolean }): Promise<void>;
   getAdminBilling(): Promise<AdminBilling>;
   refundAdminCampaign(campaignId: string): Promise<AdminRefundOutcome>;
   setAdminUserSuspended(input: { userId: string; suspended: boolean }): Promise<void>;

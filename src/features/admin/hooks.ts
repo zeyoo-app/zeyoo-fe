@@ -167,7 +167,7 @@ export function useSetStaffActive() {
   const api = useApi();
   const refresh = useRefreshAdmin();
   return useMutation({
-    mutationFn: (input: { userId: string; active: boolean }) => api.setAdminStaffActive(input),
+    mutationFn: (input: { staffId: string; active: boolean }) => api.setAdminStaffActive(input),
     onSuccess: refresh,
   });
 }

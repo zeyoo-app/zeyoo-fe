@@ -1,10 +1,7 @@
 import type { Session } from '../api/types';
 
-/** The single post-auth routing policy, including both role onboarding gates. */
+/** The single post-auth routing policy, including both role onboarding gates. Staff sign in at /admin/sign-in. */
 export function routeForSession(session: Session): string {
-  if (session.isAdmin) {
-    return '/admin/overview';
-  }
   if (session.role === 'brand') {
     return session.hasOrganization ? '/brand/dashboard' : '/brand/setup';
   }
