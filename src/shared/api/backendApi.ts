@@ -106,6 +106,13 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
   let organizationId: string | null = null;
   let organizationName = 'Your organization';
 
+  function resetSessionContext(): void {
+    accessToken = null;
+    refreshRequest = null;
+    organizationId = null;
+    organizationName = 'Your organization';
+  }
+
   async function refreshAccessToken() {
     const response = await fetch(`${channel.routes}/refresh`, { method: 'POST', cache: 'no-store' });
     if (!response.ok) return null;
@@ -166,6 +173,7 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
   }
 
   async function storeTokens(tokens: BackendTokens): Promise<void> {
+    resetSessionContext();
     accessToken = tokens.accessToken;
     await fetch(`${channel.routes}/session`, {
       method: 'POST',
@@ -201,6 +209,7 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
   }
 
   return {
+    resetSession: resetSessionContext,
     async requestStaffCode(email) { return request<CodeSent>('POST', '/admin/auth/code', { email }, false); },
     async verifyStaffCode({ email, code }) {
       await storeTokens(await request<BackendTokens>('POST', '/admin/auth/code/verify', { email, code }, false));
@@ -465,6 +474,7 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
 }
 
 export async function clearBackendSession(channel: SessionChannel = APP_SESSION_CHANNEL) {
+  // Session state is also reset by the client request path on next sign-in.
   await fetch(`${channel.routes}/session`, { method: 'DELETE' });
 }
 
