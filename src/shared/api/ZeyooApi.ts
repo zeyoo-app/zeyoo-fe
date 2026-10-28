@@ -84,6 +84,8 @@ import type {
  * their own transport.
  */
 export interface ZeyooApi {
+  /** Drop in-memory credentials and account context when the session changes. */
+  resetSession?(): void;
   /** Email a back-office sign-in code to a staff address (backend: POST /admin/auth/code). */
   requestStaffCode(email: string): Promise<CodeSent>;
   /** Exchange a back-office code for a staff session (backend: POST /admin/auth/code/verify). */

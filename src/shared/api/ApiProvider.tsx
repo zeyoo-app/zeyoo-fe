@@ -1,10 +1,11 @@
 'use client';
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { createBackendApi, type SessionChannel } from './backendApi';
 import type { ZeyooApi } from './ZeyooApi';
+import { registerAuthQueryCleanup } from '@/shared/auth';
 
 const ApiContext = createContext<ZeyooApi | null>(null);
 
@@ -31,6 +32,7 @@ export function ApiProvider({
 }) {
   const api = useMemo(() => client ?? createConfiguredApi(channel), [client, channel]);
   const [queryClient] = useState(createQueryClient);
+  useEffect(() => registerAuthQueryCleanup(() => { queryClient.clear(); api.resetSession?.(); }), [api, queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>

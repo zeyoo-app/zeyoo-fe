@@ -4,6 +4,12 @@ import { create } from 'zustand';
 
 import type { Session } from '../api/types';
 import { clearBackendSession } from '../api/backendApi';
+let clearQueries: (() => void) | null = null;
+
+export function registerAuthQueryCleanup(cleanup: () => void): () => void {
+  clearQueries = cleanup;
+  return () => { if (clearQueries === cleanup) clearQueries = null; };
+}
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -12,7 +18,7 @@ interface AuthState {
   session: Session | null;
   hydrate: () => void;
   signIn: (session: Session) => void;
-  signOut: () => void;
+  signOut: () => Promise<void>;
 }
 
 const STORAGE_KEY = 'zeyoo.session';
@@ -53,12 +59,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   signIn: (session) => {
+    clearQueries?.();
     writeStoredSession(session);
     set({ status: 'authenticated', session });
   },
 
-  signOut: () => {
-    void clearBackendSession();
+  signOut: async () => {
+    clearQueries?.();
+    await clearBackendSession().catch(() => undefined);
     writeStoredSession(null);
     set({ status: 'unauthenticated', session: null });
   },
