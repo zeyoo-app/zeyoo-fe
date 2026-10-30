@@ -21,6 +21,7 @@ export const queryKeys = {
   creatorProfile: ['creator', 'profile'] as const,
   brandProfile: ['brand', 'profile'] as const,
   creatorDirectory: ['brand', 'creators'] as const,
+  creatorPublicProfile: (creatorId: string) => ['brand', 'creators', creatorId] as const,
   notifications: ['notifications'] as const,
   notificationPreferences: ['notifications', 'preferences'] as const,
   disputes: ['disputes'] as const,

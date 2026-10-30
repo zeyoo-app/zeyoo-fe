@@ -82,6 +82,16 @@ export function useSetCampaignStatus(campaignId: string) {
   });
 }
 
+/** One creator's profile and Zeyoo track record, fetched once a brand opens it. */
+export function useCreatorPublicProfile(creatorId: string | null) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.creatorPublicProfile(creatorId ?? ''),
+    queryFn: () => api.getCreatorPublicProfile(creatorId as string),
+    enabled: Boolean(creatorId),
+  });
+}
+
 export function useCreatorDirectory(filter: CreatorDirectoryFilter = {}) {
   const api = useApi();
   return useQuery({

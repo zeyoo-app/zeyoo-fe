@@ -366,6 +366,21 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
       return await readCreatorProfile();
     },
     async connectSocial(platform) { await request('POST', '/creator-profile/social-accounts', { platform: platform.toUpperCase(), handle: platform }); return await readCreatorProfile(); },
+    async getCreatorPublicProfile(creatorId) {
+      const creator = await request<BackendProfile & { userId: string; country?: string | null; socialAccounts?: BackendSocialAccount[]; trackRecord: { campaignsJoined: number; approvedSubmissions: number; memberSince: string } }>('GET', `/creators/${creatorId}`);
+      return {
+        id: creator.userId,
+        displayName: creator.displayName,
+        handle: creator.username ? `@${creator.username}` : '',
+        avatarUrl: creator.avatarUrl ?? undefined,
+        headline: creator.headline ?? undefined,
+        bio: creator.bio ?? undefined,
+        country: creator.country ?? undefined,
+        verified: creator.verificationStatus === 'VERIFIED',
+        accounts: (creator.socialAccounts ?? []).map((account) => ({ platform: platform(account.platform), handle: account.handle, verified: Boolean(account.verifiedAt) })),
+        trackRecord: creator.trackRecord,
+      };
+    },
     async getCreatorDirectory(filter) {
       const query = new URLSearchParams();
       if (filter?.platform) query.set('platform', filter.platform.toUpperCase());

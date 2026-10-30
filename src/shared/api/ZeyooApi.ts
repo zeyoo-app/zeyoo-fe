@@ -1,4 +1,5 @@
 import type {
+  CreatorPublicProfile,
   BillingPlanDetails,
   CodeSent,
   RedirectUrl,
@@ -181,6 +182,7 @@ export interface ZeyooApi {
 
   // Brand discovery & invitations
   getCreatorDirectory(filter?: CreatorDirectoryFilter): Promise<CreatorDirectoryEntry[]>;
+  getCreatorPublicProfile(creatorId: string): Promise<CreatorPublicProfile>;
   inviteCreator(input: InviteCreatorInput): Promise<void>;
   getCampaignInvitations(campaignId: string): Promise<CampaignInvitation[]>;
   revokeInvitation(input: RevokeInvitationInput): Promise<void>;

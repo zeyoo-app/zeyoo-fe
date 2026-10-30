@@ -437,6 +437,28 @@ export interface CreatorDirectoryEntry {
   verified: boolean;
 }
 
+/** A creator as a brand sees them when weighing an application. */
+export interface CreatorPublicProfile {
+  id: string;
+  displayName: string;
+  handle: string;
+  avatarUrl?: string;
+  headline?: string;
+  bio?: string;
+  /** ISO 3166-1 alpha-2, e.g. "SA". */
+  country?: string;
+  /** Zeyoo-verified creator (profile review passed). */
+  verified: boolean;
+  accounts: { platform: SocialPlatform; handle: string; verified: boolean }[];
+  trackRecord: {
+    /** Campaigns a brand approved them to join. */
+    campaignsJoined: number;
+    /** Posts brands approved. */
+    approvedSubmissions: number;
+    memberSince: string;
+  };
+}
+
 export interface CreatorDirectoryFilter {
   platform?: SocialPlatform;
   verifiedOnly?: boolean;
