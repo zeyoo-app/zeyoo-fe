@@ -8,7 +8,7 @@ import { platformLabel } from '@/shared/format/platform';
 import { useDeclineInvitation, useMyInvitations } from '../submissions/hooks';
 
 /**
- * Private-campaign invitations waiting for an answer (contract §1.3). Accepting opens the
+ * Campaign invitations waiting for an answer (contract §1.3). Accepting opens the
  * campaign, where applying accepts its terms; declining tells the brand no.
  */
 export function InvitationsSection() {
@@ -26,7 +26,7 @@ export function InvitationsSection() {
           <Card key={invitation.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-wide text-text-tertiary">
-                Private · {platformLabel(invitation.platform)}
+                Invitation · {platformLabel(invitation.platform)}
               </p>
               <p className="truncate font-medium text-text">{invitation.campaignTitle}</p>
               <p className="text-sm text-text-muted">You were invited to this campaign.</p>

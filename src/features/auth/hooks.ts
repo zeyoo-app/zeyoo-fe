@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import { API_ERROR, errorCodeOf, useApi } from '@/shared/api';
 import type { OAuthProvider, Role, SignInIntent } from '@/shared/api';
-import { routeForSession, useAuthStore } from '@/shared/auth';
+import { routeAfterSignIn, useAuthStore } from '@/shared/auth';
 
 import { acquireIdToken, startGoogleSignIn } from './socialAuth';
 
@@ -53,7 +53,7 @@ export function useSignIn({ navigate = true, intent }: { navigate?: boolean; int
     try {
       const session = await exchange();
       persistSession(session);
-      if (navigate) router.replace(routeForSession(session));
+      if (navigate) router.replace(routeAfterSignIn(session));
       return session;
     } catch (cause) {
       setAccountMissing(errorCodeOf(cause) === API_ERROR.accountNotFound);
@@ -106,7 +106,7 @@ export function useOAuthSignIn() {
       const idToken = await acquireIdToken(provider);
       const session = await api.oauthSignIn({ provider, idToken, role });
       persistSession(session);
-      router.replace(routeForSession(session));
+      router.replace(routeAfterSignIn(session));
     } catch {
       setError(`Could not sign in with ${provider === 'apple' ? 'Apple' : 'Google'}. Please try again.`);
     } finally {

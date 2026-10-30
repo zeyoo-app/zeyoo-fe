@@ -9,7 +9,7 @@ import { AuthShell } from '@/features/auth/AuthShell';
 import { completeGoogleSignIn } from '@/features/auth/socialAuth';
 import { API_ERROR, errorCodeOf, useApi } from '@/shared/api';
 import type { Role } from '@/shared/api';
-import { routeForSession, useAuthStore } from '@/shared/auth';
+import { routeAfterSignIn, useAuthStore } from '@/shared/auth';
 
 type Stage = 'signing-in' | 'choose-role' | 'failed';
 
@@ -31,7 +31,7 @@ export default function Page() {
   async function exchange(token: string, role?: Role) {
     const session = await api.oauthSignIn({ provider: 'google', idToken: token, role });
     persistSession(session);
-    router.replace(routeForSession(session));
+    router.replace(routeAfterSignIn(session));
   }
 
   useEffect(() => {

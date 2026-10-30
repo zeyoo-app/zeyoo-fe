@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { AsyncContent, Badge, Button, Card, EmptyState, PageHeader } from '@/design-system';
 import type { AppNotification } from '@/shared/api';
 
@@ -39,7 +41,19 @@ export function NotificationsScreen() {
   );
 }
 
+/** A row opens the page the notification is about, when it names one. */
 function NotificationRow({ notification }: { notification: AppNotification }) {
+  const row = <NotificationCard notification={notification} />;
+  return notification.link ? (
+    <Link href={notification.link} className="block rounded-2xl transition-opacity hover:opacity-80">
+      {row}
+    </Link>
+  ) : (
+    row
+  );
+}
+
+function NotificationCard({ notification }: { notification: AppNotification }) {
   return (
     <Card className="flex items-start gap-3 p-4">
       {!notification.read ? <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" /> : <span className="mt-1.5 size-2 shrink-0" />}

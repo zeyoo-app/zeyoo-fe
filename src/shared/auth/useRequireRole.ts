@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import type { Role, Session } from '../api/types';
 import { useAuthStore } from './authStore';
+import { rememberReturnTo } from './returnTo';
 import { routeForSession } from './routeForSession';
 import { useSignOutWhenExpired } from './useSignOutWhenExpired';
 
@@ -26,6 +27,7 @@ export function useRequireRole(role: Role, options?: { skipOnboarding?: boolean 
   useEffect(() => {
     if (status === 'loading') return;
     if (status === 'unauthenticated' || !session) {
+      rememberReturnTo(`${window.location.pathname}${window.location.search}`);
       router.replace('/sign-in');
       return;
     }

@@ -381,7 +381,7 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     async revokeInvitation({ campaignId, invitationId }) {
       await request('DELETE', `/campaigns/${campaignId}/invitations/${invitationId}`);
     },
-    async getNotifications() { return (await request<{ id: string; type: string; title: string; body: string; createdAt: string; readAt?: string | null }[]>('GET', '/me/notifications')).map((item) => ({ id: item.id, type: notificationType(item.type), title: item.title, body: item.body, date: item.createdAt, read: Boolean(item.readAt) })); },
+    async getNotifications() { return (await request<{ id: string; type: string; title: string; body: string; createdAt: string; readAt?: string | null; link?: string | null }[]>('GET', '/me/notifications')).map((item) => ({ id: item.id, type: notificationType(item.type), title: item.title, body: item.body, date: item.createdAt, read: Boolean(item.readAt), link: item.link ?? undefined })); },
     async markNotificationsRead() { await request('POST', '/me/notifications/read-all'); return this.getNotifications(); },
     async getNotificationPreferences() {
       return pickNotificationPreferences(await request<NotificationPreferences>('GET', '/me/notification-preferences'));
@@ -760,4 +760,4 @@ function platform(value: string): Campaign['platform'] { return value === 'INSTA
 function describeCampaign(input: { brief: string; title: string }) { return input.brief || input.title; }
 function serializeGuidelines(requirements: CampaignRequirements) { return requirements.contentRules.join('\n'); }
 function parseGuidelines(value?: string | null) { return value?.split('\n').map((item) => item.trim()).filter(Boolean) ?? []; }
-function notificationType(value: string): 'campaign' | 'submission' | 'payout' | 'system' { return value.includes('SUBMISSION') ? 'submission' : value.includes('PAYOUT') ? 'payout' : value.includes('CAMPAIGN') ? 'campaign' : 'system'; }
+function notificationType(value: string): 'campaign' | 'submission' | 'payout' | 'system' { return value.includes('SUBMISSION') ? 'submission' : /PAYOUT|EARNING|WITHDRAWAL|REFUND/.test(value) ? 'payout' : /CAMPAIGN|INVITE|APPLICATION|FRAUD/.test(value) ? 'campaign' : 'system'; }
