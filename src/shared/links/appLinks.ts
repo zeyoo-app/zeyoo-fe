@@ -29,7 +29,10 @@ export const ANDROID_PACKAGE = 'app.zeyoo.mobile';
  * installs and the EAS key for internal builds.
  */
 const KNOWN_ANDROID_CERT_FINGERPRINTS = [
+  // Google Play app-signing key (store installs).
   '62:E8:AE:86:D9:68:95:31:86:C5:F9:82:2A:63:21:B1:28:FA:28:93:CF:D1:45:9B:BF:86:D2:92:A1:7E:6E:4F',
+  // EAS keystore for the production profile (EAS-built APKs and the Play upload).
+  '2A:35:16:F9:59:84:94:FF:62:7F:9A:6D:C3:1F:62:EC:35:07:5A:77:FB:8F:F8:69:D8:63:1C:B4:E4:D9:D0:E1',
 ];
 
 export function androidCertFingerprints(): string[] {
