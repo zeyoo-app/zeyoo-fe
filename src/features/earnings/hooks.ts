@@ -50,6 +50,11 @@ export function useBrandLedger() {
   return useQuery({ queryKey: queryKeys.brandLedger, queryFn: () => api.getBrandLedger() });
 }
 
+export function useBillingPlans() {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.billingPlans, queryFn: () => api.getBillingPlans() });
+}
+
 export function useSetBillingPlan() {
   const api = useApi();
   return useMutation({

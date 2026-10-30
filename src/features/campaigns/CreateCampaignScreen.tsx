@@ -38,6 +38,7 @@ import {
   useFundCampaign,
   useSetCampaignStatus,
 } from './hooks';
+import { useBrandBilling } from '../earnings/hooks';
 
 type WizardStep = 1 | 2 | 3 | 'review';
 
@@ -618,6 +619,7 @@ type FundingStep = 'confirm' | 'processing' | 'pending' | 'failed';
 function FundingDialog({ campaign, onClose, onViewDraft, onPublished }: { campaign: Campaign | null; onClose: () => void; onViewDraft: () => void; onPublished: (campaign: Campaign) => void }) {
   const fund = useFundCampaign();
   const publish = useSetCampaignStatus(campaign?.id ?? '');
+  const feeBps = useBrandBilling().data?.platformFeeBps;
   const [state, setState] = useState<FundingStep>('confirm');
   const [message, setMessage] = useState('');
 
@@ -664,7 +666,8 @@ function FundingDialog({ campaign, onClose, onViewDraft, onPublished }: { campai
           <p className="text-sm text-text-muted">Review your campaign funding before continuing.</p>
           <Card className="flex flex-col gap-3">
             <ReviewLine label="Campaign" value={campaign.title} />
-            <ReviewLine label="Funding amount" value={formatMoney(campaign.budget)} />
+            <ReviewLine label="Campaign budget" value={formatMoney(campaign.budget)} />
+            {feeBps ? <ReviewLine label="Platform fee" value={`${feeBps / 100}% of the budget, added at checkout`} /> : null}
             <ReviewLine label="Payment method" value="Default card" />
           </Card>
           <Button loading={state === 'processing' || publish.isPending} disabled={state === 'processing'} onClick={() => void fundAndPublish()}>Fund & Publish</Button>

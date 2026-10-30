@@ -16,7 +16,7 @@ export function CampaignCard({ campaign, href }: { campaign: Campaign; href: str
     >
       <CampaignCover platform={campaign.platform} className="h-36" />
       <div className="p-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge tone="neutral">{platformsLabel(campaign.platforms)}</Badge>
           <Badge tone="success" className="font-numeric">
             {formatCampaignReward(campaign)}

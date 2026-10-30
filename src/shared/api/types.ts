@@ -96,6 +96,8 @@ export interface CampaignFunding {
   fundingId: string;
   status: 'pending' | 'succeeded' | 'failed';
   amount: Money;
+  /** Platform fee charged on top of the budget, per the brand's plan. */
+  fee: Money;
   /** Stripe's hosted payment page; absent when the payment settled without it. */
   checkoutUrl?: string;
 }
@@ -319,11 +321,28 @@ export interface WithdrawInput {
 
 export type BillingPlan = 'Starter' | 'Growth' | 'Scale';
 
+/** A subscription tier and what it allows (the backend's plan catalog). */
+export interface BillingPlanDetails {
+  plan: BillingPlan;
+  /** Monthly price; zero for the free tier. */
+  priceUsd: Money;
+  priceSar: Money;
+  /** Campaigns that may be live at once; null = unlimited. */
+  maxActiveCampaigns: number | null;
+  /** Fee on top of each campaign budget, as a percentage (e.g. 10). */
+  platformFeePercent: number;
+  allowsPrivateCampaigns: boolean;
+  /** Whether it can be bought now (paid tiers with a Stripe price). */
+  purchasable: boolean;
+}
+
 export interface BrandBilling {
   plan: BillingPlan;
   monthlySpend: Money;
   totalFunded: Money;
   paymentMethodLast4?: string;
+  /** Platform fee added on top of each campaign budget at checkout, in basis points. */
+  platformFeeBps?: number;
 }
 
 /** A hosted (Stripe) page the client must open to finish a flow: payout setup, card entry, checkout. */
