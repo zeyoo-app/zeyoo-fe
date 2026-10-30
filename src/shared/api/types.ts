@@ -480,6 +480,8 @@ export interface AppNotification {
   body: string;
   date: string;
   read: boolean;
+  /** Path of the page it is about (e.g. /brand/campaigns/<id>); absent for older ones. */
+  link?: string;
 }
 
 export interface NotificationPreferences {
