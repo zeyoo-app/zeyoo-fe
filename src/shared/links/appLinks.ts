@@ -22,13 +22,20 @@ export const IOS_APP_ID = `${process.env.APPLE_TEAM_ID ?? '452DA33M5F'}.app.zeyo
 export const ANDROID_PACKAGE = 'app.zeyoo.mobile';
 
 /**
- * SHA-256 fingerprints of the Android signing certificates, comma-separated in
- * ANDROID_SHA256_CERT_FINGERPRINTS: the Play app-signing key (Play Console → App
- * integrity) and the EAS upload key, so store and internal builds both verify.
+ * SHA-256 fingerprints of the certificates the Android app is signed with. They are
+ * public (every APK carries its certificate), so the known ones live here; more can be
+ * added without a code change, comma-separated, in ANDROID_SHA256_CERT_FINGERPRINTS.
+ * Each key the app ships under must be listed: the Play app-signing key for store
+ * installs and the EAS key for internal builds.
  */
+const KNOWN_ANDROID_CERT_FINGERPRINTS = [
+  '62:E8:AE:86:D9:68:95:31:86:C5:F9:82:2A:63:21:B1:28:FA:28:93:CF:D1:45:9B:BF:86:D2:92:A1:7E:6E:4F',
+];
+
 export function androidCertFingerprints(): string[] {
-  return (process.env.ANDROID_SHA256_CERT_FINGERPRINTS ?? '')
+  const configured = (process.env.ANDROID_SHA256_CERT_FINGERPRINTS ?? '')
     .split(',')
     .map((value) => value.trim().toUpperCase())
     .filter(Boolean);
+  return [...new Set([...KNOWN_ANDROID_CERT_FINGERPRINTS, ...configured])];
 }
