@@ -16,6 +16,7 @@ export const queryKeys = {
   wallet: ['wallet'] as const,
   ledger: ['wallet', 'ledger'] as const,
   brandBilling: ['brand', 'billing'] as const,
+  billingPlans: ['billing', 'plans'] as const,
   brandLedger: ['brand', 'wallet', 'ledger'] as const,
   creatorProfile: ['creator', 'profile'] as const,
   brandProfile: ['brand', 'profile'] as const,

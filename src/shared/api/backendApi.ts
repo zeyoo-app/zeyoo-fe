@@ -3,6 +3,8 @@ import type { Money } from '../money/money';
 import type { ZeyooApi } from './ZeyooApi';
 import { ApiError } from './errors';
 import type {
+  BillingPlan,
+  BillingPlanDetails,
   Role,
   TeamMember,
   CampaignApplication,
@@ -48,7 +50,8 @@ interface BackendTokens { accessToken: string; refreshToken: string }
 interface BackendAccount { id: string; email: string | null; phone?: string | null; type: string; emailVerifiedAt?: string | null; phoneVerifiedAt?: string | null; organizations?: { organizationId: string; name: string }[]; hasCreatorProfile?: boolean }
 interface BackendOrganization { id: string; name: string; website?: string | null; industry?: string | null; logoUrl?: string | null }
 interface BackendCampaign { id: string; title: string; description: string; guidelines?: string | null; platform: string; platforms?: string[]; maxRewardPerCreatorAmount?: number | null; hashtags?: string[]; mentions?: string[]; referenceMaterials?: { name: string; url: string }[]; status: string; currencyCode: string; budgetAmount: number; rewardAmount: number; organization?: { name?: string }; organizationId: string; categoryId?: string | null; startDate?: string; endDate?: string; rewardType?: string; goals?: string | null; audience?: string | null; contentType?: string; coverImageUrl?: string | null }
-interface BackendFunding { fundingId: string; checkoutUrl?: string | null; amountMinor: number; currencyCode: string; status?: 'PENDING' | 'SUCCEEDED' | 'FAILED' }
+interface BackendFunding { fundingId: string; checkoutUrl?: string | null; amountMinor: number; feeMinor?: number; currencyCode: string; status?: 'PENDING' | 'SUCCEEDED' | 'FAILED' }
+interface BackendPlan { key: string; name: string; priceMinor: number; priceMinorSar: number | null; currencyCode: string; stripePriceId: string | null; maxActiveCampaigns: number | null; platformFeeBps: number; allowsPrivateCampaigns: boolean }
 interface BackendProfile { displayName: string; username?: string; avatarUrl?: string | null; headline?: string | null; bio?: string | null; verificationStatus?: string; verificationNote?: string | null }
 interface BackendSubmission {
   id: string; campaignId: string; status: string; creatorUserId: string;
@@ -393,6 +396,7 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     async requestWithdrawal({ amount }) { await request('POST', '/me/withdrawals', { amountMinor: amount.minorUnits, currencyCode: amount.currency }); return this.getWallet(); },
     async getBrandLedger() { const id = await currentOrganizationId(); return request('GET', `/organizations/${id}/ledger`); },
     async getBrandBilling() { const id = await currentOrganizationId(); return request('GET', `/organizations/${id}/billing`); },
+    async getBillingPlans() { return (await request<BackendPlan[]>('GET', '/billing/plans')).map(mapPlan); },
     async setBillingPlan(plan) { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/subscription/checkout`, { planKey: plan.toLowerCase() }); },
     async setBrandPaymentMethod() { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/payment-methods`); },
     async getDisputes() { return (await request<BackendDispute[]>('GET', '/disputes')).map(mapDispute); },
@@ -676,7 +680,20 @@ function mapFunding(value: BackendFunding): CampaignFunding {
     fundingId: value.fundingId,
     status: value.status === 'SUCCEEDED' ? 'succeeded' : value.status === 'FAILED' ? 'failed' : 'pending',
     amount: { minorUnits: value.amountMinor, currency: value.currencyCode },
+    fee: { minorUnits: value.feeMinor ?? 0, currency: value.currencyCode },
     checkoutUrl: value.checkoutUrl ?? undefined,
+  };
+}
+
+function mapPlan(value: BackendPlan): BillingPlanDetails {
+  return {
+    plan: value.name as BillingPlan,
+    priceUsd: { minorUnits: value.priceMinor, currency: value.currencyCode },
+    priceSar: { minorUnits: value.priceMinorSar ?? 0, currency: 'SAR' },
+    maxActiveCampaigns: value.maxActiveCampaigns,
+    platformFeePercent: value.platformFeeBps / 100,
+    allowsPrivateCampaigns: value.allowsPrivateCampaigns,
+    purchasable: value.stripePriceId !== null && value.priceMinor > 0,
   };
 }
 

@@ -1,4 +1,5 @@
 import type {
+  BillingPlanDetails,
   CodeSent,
   RedirectUrl,
   AiBriefRequest,
@@ -160,6 +161,7 @@ export interface ZeyooApi {
 
   // Brand billing
   getBrandBilling(): Promise<BrandBilling>;
+  getBillingPlans(): Promise<BillingPlanDetails[]>;
   /** Money movements on the brand wallet: top-ups in, campaign funding out. */
   getBrandLedger(): Promise<BrandLedgerEntry[]>;
   setBillingPlan(plan: BillingPlan): Promise<RedirectUrl>;
