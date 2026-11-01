@@ -343,6 +343,25 @@ export interface BrandBilling {
   paymentMethodLast4?: string;
   /** Platform fee added on top of each campaign budget at checkout, in basis points. */
   platformFeeBps?: number;
+  /**
+   * Prepaid balance brands spend on campaigns (USD). Held by Zeyoo; it can only fund
+   * campaigns and cannot be withdrawn.
+   */
+  walletBalance?: Money;
+}
+
+/** A card payment into the brand wallet; settles once Stripe confirms it. */
+export interface WalletTopUp {
+  status: 'pending' | 'succeeded' | 'failed';
+  amount: Money;
+  /** Stripe's hosted payment page; absent when the payment settled without it. */
+  checkoutUrl?: string;
+}
+
+export interface FundFromWalletInput {
+  campaignId: string;
+  /** The campaign budget; the plan fee is added on top by the backend. */
+  amount: Money;
 }
 
 /** A hosted (Stripe) page the client must open to finish a flow: payout setup, card entry, checkout. */

@@ -1,4 +1,7 @@
+import type { Money } from '../money/money';
 import type {
+  FundFromWalletInput,
+  WalletTopUp,
   CreatorPublicProfile,
   BillingPlanDetails,
   CodeSent,
@@ -117,6 +120,8 @@ export interface ZeyooApi {
   /** The latest funding attempt for a campaign, for waiting on a payment made elsewhere. */
   getCampaignFunding(campaignId: string): Promise<CampaignFunding | null>;
   fundCampaign(input: FundCampaignInput): Promise<CampaignFunding>;
+  /** Pays a campaign's budget and plan fee from the brand wallet; settles at once. */
+  fundCampaignFromWallet(input: FundFromWalletInput): Promise<CampaignFunding>;
   setCampaignStatus(input: { campaignId: string; status: Campaign['status'] }): Promise<Campaign>;
   getDiscoverCampaigns(): Promise<Campaign[]>;
 
@@ -163,6 +168,8 @@ export interface ZeyooApi {
   // Brand billing
   getBrandBilling(): Promise<BrandBilling>;
   getBillingPlans(): Promise<BillingPlanDetails[]>;
+  /** Opens Stripe Checkout to add money to the brand wallet (USD, minimum $50). */
+  topUpWallet(amount: Money): Promise<WalletTopUp>;
   /** Money movements on the brand wallet: top-ups in, campaign funding out. */
   getBrandLedger(): Promise<BrandLedgerEntry[]>;
   setBillingPlan(plan: BillingPlan): Promise<RedirectUrl>;

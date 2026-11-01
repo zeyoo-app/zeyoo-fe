@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { queryKeys, useApi } from '@/shared/api';
-import type { BillingPlan, RedirectUrl, WithdrawInput } from '@/shared/api';
+import type { BillingPlan, Money, RedirectUrl, WithdrawInput } from '@/shared/api';
 
 /** Hands the browser to a hosted Stripe page (payout setup, checkout, card entry). */
 function openHostedPage({ url }: RedirectUrl) {
@@ -18,6 +18,23 @@ export function useWallet() {
 export function useLedger() {
   const api = useApi();
   return useQuery({ queryKey: queryKeys.ledger, queryFn: () => api.getLedger() });
+}
+
+/** Sends the brand to Stripe Checkout to add money to their wallet. */
+export function useTopUpWallet() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (amount: Money) => api.topUpWallet(amount),
+    onSuccess: (topUp) => {
+      if (topUp.checkoutUrl) {
+        window.location.assign(topUp.checkoutUrl);
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.brandBilling });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.brandLedger });
+    },
+  });
 }
 
 export function useConnectPayout() {

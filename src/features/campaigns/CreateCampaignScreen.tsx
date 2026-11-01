@@ -36,6 +36,7 @@ import {
   useCampaignCategories,
   useCreateCampaign,
   useFundCampaign,
+  useFundFromWallet,
   useSetCampaignStatus,
 } from './hooks';
 import { useBrandBilling } from '../earnings/hooks';
@@ -615,11 +616,22 @@ function ReviewSection({ title, rows, onEdit }: { title: string; rows: [string, 
 }
 
 type FundingStep = 'confirm' | 'processing' | 'pending' | 'failed';
+type PayMethod = 'wallet' | 'card';
 
 function FundingDialog({ campaign, onClose, onViewDraft, onPublished }: { campaign: Campaign | null; onClose: () => void; onViewDraft: () => void; onPublished: (campaign: Campaign) => void }) {
   const fund = useFundCampaign();
+  const fundFromWallet = useFundFromWallet();
   const publish = useSetCampaignStatus(campaign?.id ?? '');
-  const feeBps = useBrandBilling().data?.platformFeeBps;
+  const billing = useBrandBilling().data;
+  const feeBps = billing?.platformFeeBps;
+  // The wallet holds one currency; it can pay for campaigns in that currency only.
+  const wallet = billing?.walletBalance;
+  const walletUsable = Boolean(
+    campaign && wallet && wallet.currency === campaign.budget.currency && wallet.minorUnits > 0,
+  );
+  const [method, setMethod] = useState<PayMethod | null>(null);
+  const payWith: PayMethod =
+    method ?? (walletUsable && campaign && wallet && wallet.minorUnits >= campaign.budget.minorUnits ? 'wallet' : 'card');
   const [state, setState] = useState<FundingStep>('confirm');
   const [message, setMessage] = useState('');
 
@@ -628,6 +640,11 @@ function FundingDialog({ campaign, onClose, onViewDraft, onPublished }: { campai
     setState('processing');
     setMessage('');
     try {
+      if (walletUsable && payWith === 'wallet') {
+        await fundFromWallet.mutateAsync({ campaignId: campaign.id, amount: campaign.budget });
+        onPublished(await publish.mutateAsync('live'));
+        return;
+      }
       const funding = await fund.mutateAsync({ campaignId: campaign.id, amount: campaign.budget, client: 'web' });
       if (funding.status === 'failed') {
         setMessage('Your payment could not be completed. Please try again.');
@@ -667,9 +684,26 @@ function FundingDialog({ campaign, onClose, onViewDraft, onPublished }: { campai
           <Card className="flex flex-col gap-3">
             <ReviewLine label="Campaign" value={campaign.title} />
             <ReviewLine label="Campaign budget" value={formatMoney(campaign.budget)} />
-            {feeBps ? <ReviewLine label="Platform fee" value={`${feeBps / 100}% of the budget, added at checkout`} /> : null}
-            <ReviewLine label="Payment method" value="Default card" />
+            {feeBps ? <ReviewLine label="Platform fee" value={`${feeBps / 100}% of the budget, added ${payWith === 'wallet' ? 'from your wallet' : 'at checkout'}`} /> : null}
+            {walletUsable ? null : <ReviewLine label="Payment method" value="Card, on Stripe" />}
           </Card>
+          {walletUsable && wallet ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium text-text">Pay with</p>
+              <SegmentedToggle<PayMethod>
+                ariaLabel="Payment method"
+                options={[
+                  { value: 'wallet', label: `Wallet · ${formatMoney(wallet)}` },
+                  { value: 'card', label: 'Card' },
+                ]}
+                value={payWith}
+                onChange={setMethod}
+              />
+              <p className="text-xs text-text-muted">
+                {payWith === 'wallet' ? 'Paid from your balance straight away. No card needed.' : 'Secure card payment on Stripe.'}
+              </p>
+            </div>
+          ) : null}
           <Button loading={state === 'processing' || publish.isPending} disabled={state === 'processing'} onClick={() => void fundAndPublish()}>Fund & Publish</Button>
         </>
       ) : null}

@@ -70,6 +70,19 @@ export function useFundCampaign() {
   return useMutation({ mutationFn: api.fundCampaign });
 }
 
+/** Pays a campaign from the brand wallet; the wallet balance and activity change at once. */
+export function useFundFromWallet() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.fundCampaignFromWallet,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.brandBilling });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.brandLedger });
+    },
+  });
+}
+
 export function useSetCampaignStatus(campaignId: string) {
   const api = useApi();
   const queryClient = useQueryClient();

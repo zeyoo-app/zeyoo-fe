@@ -277,6 +277,9 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     async fundCampaign({ campaignId, amount, client }) {
       return mapFunding(await request<BackendFunding>('POST', `/campaigns/${campaignId}/funding`, { amountMinor: amount.minorUnits, client }));
     },
+    async fundCampaignFromWallet({ campaignId, amount }) {
+      return mapFunding(await request<BackendFunding>('POST', `/campaigns/${campaignId}/funding/wallet`, { amountMinor: amount.minorUnits }));
+    },
     async setCampaignStatus({ campaignId, status }) {
       if (status === 'draft') throw new Error('Published campaigns cannot be returned to draft.');
       return mapCampaign(await request<BackendCampaign>('POST', `/campaigns/${campaignId}/${status === 'live' ? 'publish' : 'close'}`), organizationName);
@@ -411,6 +414,15 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     async requestWithdrawal({ amount }) { await request('POST', '/me/withdrawals', { amountMinor: amount.minorUnits, currencyCode: amount.currency }); return this.getWallet(); },
     async getBrandLedger() { const id = await currentOrganizationId(); return request('GET', `/organizations/${id}/ledger`); },
     async getBrandBilling() { const id = await currentOrganizationId(); return request('GET', `/organizations/${id}/billing`); },
+    async topUpWallet(amount) {
+      const id = await currentOrganizationId();
+      const topUp = await request<{ amountMinor: number; currencyCode: string; status: 'PENDING' | 'SUCCEEDED' | 'FAILED'; checkoutUrl: string | null }>('POST', `/organizations/${id}/wallet/top-ups`, { amountMinor: amount.minorUnits, client: 'web' });
+      return {
+        status: topUp.status === 'SUCCEEDED' ? 'succeeded' : topUp.status === 'FAILED' ? 'failed' : 'pending',
+        amount: { minorUnits: topUp.amountMinor, currency: topUp.currencyCode },
+        checkoutUrl: topUp.checkoutUrl ?? undefined,
+      };
+    },
     async getBillingPlans() { return (await request<BackendPlan[]>('GET', '/billing/plans')).map(mapPlan); },
     async setBillingPlan(plan) { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/subscription/checkout`, { planKey: plan.toLowerCase() }); },
     async setBrandPaymentMethod() { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/payment-methods`); },

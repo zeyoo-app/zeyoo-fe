@@ -21,7 +21,7 @@ export interface LegalDocument {
 
 const ENGLISH: LegalDocument = {
   title: 'Terms & Privacy Policy',
-  lastUpdated: 'Last updated: October 2026',
+  lastUpdated: 'Last updated: November 2026',
   intro:
     'Welcome to Zeyoo. By creating an account you agree to these Terms of Service and our Privacy Policy.',
   sections: [
@@ -31,7 +31,7 @@ const ENGLISH: LegalDocument = {
     },
     {
       heading: '2. Payments & Rewards',
-      body: "Businesses fund campaigns in advance, plus a platform fee set by their subscription plan. Unspent budget can be refunded; the platform fee cannot. Creators are paid based on the reward terms shown on each campaign at the time of submission. Payouts are processed to the payout method on file.",
+      body: "Businesses fund campaigns in advance, plus a platform fee set by their subscription plan. Businesses can also prepay into a Zeyoo wallet held by Zeyoo; wallet funds can only be spent on campaigns and cannot be withdrawn. A closed campaign's unspent budget returns to the wallet (or, for campaigns not in US dollars, to the card that paid). The platform fee is not refundable. Creators are paid based on the reward terms shown on each campaign at the time of submission. Payouts are processed to the payout method on file.",
     },
     {
       heading: '3. Content Ownership',
@@ -56,7 +56,7 @@ const ENGLISH: LegalDocument = {
 
 const ARABIC: LegalDocument = {
   title: 'الشروط وسياسة الخصوصية',
-  lastUpdated: 'آخر تحديث: أكتوبر 2026',
+  lastUpdated: 'آخر تحديث: نوفمبر 2026',
   intro:
     'مرحبًا بك في Zeyoo. بإنشائك حسابًا فإنك توافق على شروط الخدمة هذه وعلى سياسة الخصوصية الخاصة بنا.',
   sections: [
@@ -66,7 +66,7 @@ const ARABIC: LegalDocument = {
     },
     {
       heading: '2. المدفوعات والمكافآت',
-      body: 'تموّل الشركات الحملات مقدمًا، إضافةً إلى رسوم منصة تحددها خطة اشتراكها. يمكن استرداد الميزانية غير المصروفة، أما رسوم المنصة فلا تُسترد. يحصل صنّاع المحتوى على مستحقاتهم وفق شروط المكافأة المعروضة على كل حملة وقت تقديم المحتوى، وتُصرف المدفوعات إلى وسيلة الدفع المسجّلة.',
+      body: 'تموّل الشركات الحملات مقدمًا، إضافةً إلى رسوم منصة تحددها خطة اشتراكها. ويمكن للشركات أيضًا الدفع مسبقًا في محفظة Zeyoo التي تحتفظ بها Zeyoo؛ ولا يمكن استخدام رصيد المحفظة إلا في الحملات، ولا يمكن سحبه. وتعود الميزانية غير المصروفة من الحملة المغلقة إلى المحفظة (أو إلى البطاقة التي دفعت، للحملات بغير الدولار الأمريكي). ورسوم المنصة غير قابلة للاسترداد. يحصل صنّاع المحتوى على مستحقاتهم وفق شروط المكافأة المعروضة على كل حملة وقت تقديم المحتوى، وتُصرف المدفوعات إلى وسيلة الدفع المسجّلة.',
     },
     {
       heading: '3. ملكية المحتوى',
