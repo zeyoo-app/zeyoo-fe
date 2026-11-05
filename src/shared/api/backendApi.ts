@@ -424,7 +424,13 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
       };
     },
     async getBillingPlans() { return (await request<BackendPlan[]>('GET', '/billing/plans')).map(mapPlan); },
-    async setBillingPlan(plan) { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/subscription/checkout`, { planKey: plan.toLowerCase() }); },
+    async setBillingPlan(plan) {
+      const id = await currentOrganizationId();
+      const result = await request<{ url: string | null; changed?: boolean }>('POST', `/organizations/${id}/subscription/checkout`, { planKey: plan.toLowerCase() });
+      return { checkoutUrl: result.url ?? undefined, changedInPlace: Boolean(result.changed) };
+    },
+    async cancelBillingPlan() { const id = await currentOrganizationId(); return request<{ planEndsAt: string }>('POST', `/organizations/${id}/subscription/cancel`); },
+    async resumeBillingPlan() { const id = await currentOrganizationId(); await request('POST', `/organizations/${id}/subscription/resume`); },
     async setBrandPaymentMethod() { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/payment-methods`); },
     async getDisputes() { return (await request<BackendDispute[]>('GET', '/disputes')).map(mapDispute); },
     async escalateDispute(disputeId) { return mapDispute(await request<BackendDispute>('POST', `/disputes/${disputeId}/escalate`)); },

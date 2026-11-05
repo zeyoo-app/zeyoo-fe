@@ -72,11 +72,40 @@ export function useBillingPlans() {
   return useQuery({ queryKey: queryKeys.billingPlans, queryFn: () => api.getBillingPlans() });
 }
 
+/**
+ * Chooses a plan. From Starter it sends the browser to Stripe Checkout; a paying brand
+ * is switched in place (Stripe adjusts the next invoice) and the page updates at once.
+ */
 export function useSetBillingPlan() {
   const api = useApi();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (plan: BillingPlan) => api.setBillingPlan(plan),
-    onSuccess: openHostedPage,
+    onSuccess: (change) => {
+      if (change.checkoutUrl) {
+        window.location.assign(change.checkoutUrl);
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.brandBilling });
+    },
+  });
+}
+
+export function useCancelBillingPlan() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.cancelBillingPlan(),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.brandBilling }),
+  });
+}
+
+export function useResumeBillingPlan() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.resumeBillingPlan(),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.brandBilling }),
   });
 }
 

@@ -3,26 +3,49 @@
 import { useState } from 'react';
 import { Check } from 'lucide-react';
 
-import { AsyncContent, Badge, Button, Card, Divider, cn } from '@/design-system';
+import { AsyncContent, Badge, Button, Card, Divider, cn, useConfirm } from '@/design-system';
 import type { BillingPlan, BillingPlanDetails } from '@/shared/api';
 import { useI18n } from '@/shared/i18n';
 import { formatMoney } from '@/shared/money/money';
 import { DetailShell } from '@/shared/shell';
 
-import { useBillingPlans, useBrandBilling, useSetBillingPlan } from '../earnings/hooks';
+import {
+  useBillingPlans,
+  useBrandBilling,
+  useCancelBillingPlan,
+  useResumeBillingPlan,
+  useSetBillingPlan,
+} from '../earnings/hooks';
 
 /** Brand subscription: current tier, monthly spend, and what each tier includes. */
 export function SubscriptionScreen() {
+  const confirm = useConfirm();
   const billing = useBrandBilling();
   const plans = useBillingPlans();
   const setPlan = useSetBillingPlan();
+  const cancelPlan = useCancelBillingPlan();
+  const resumePlan = useResumeBillingPlan();
   const [selected, setSelected] = useState<BillingPlan | null>(null);
 
   const current = billing.data?.plan;
+  const paying = current !== undefined && current !== 'Starter';
+  const endsAt = billing.data?.planEndsAt;
   const choice = plans.data?.find((plan) => plan.plan === (selected ?? current));
   const changed = selected !== null && selected !== current;
   // Moving down to the free tier means cancelling the paid subscription, not buying one.
-  const downgrade = changed && choice?.purchasable === false;
+  const toStarter = changed && choice?.purchasable === false;
+  const error = setPlan.error ?? cancelPlan.error ?? resumePlan.error;
+
+  async function cancel() {
+    const confirmed = await confirm({
+      title: 'Cancel your subscription?',
+      message:
+        "You keep your current plan until the end of the period you've paid for, then move to Starter. Live campaigns stay live.",
+      confirmLabel: 'Cancel subscription',
+      tone: 'danger',
+    });
+    if (confirmed) cancelPlan.mutate(undefined, { onSuccess: () => setSelected(null) });
+  }
 
   return (
     <DetailShell
@@ -42,6 +65,22 @@ export function SubscriptionScreen() {
                 Current plan
               </p>
               <p className="font-display text-2xl font-semibold text-text">{data.billing.plan}</p>
+              {endsAt ? (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-text-muted">
+                    Ends on {new Date(endsAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}. You&apos;ll move to Starter after that.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    fullWidth={false}
+                    loading={resumePlan.isPending}
+                    onClick={() => resumePlan.mutate()}
+                  >
+                    Keep my plan
+                  </Button>
+                </div>
+              ) : null}
               <Divider />
               <div className="flex items-center justify-between">
                 <span className="text-sm text-text-muted">Spend this month</span>
@@ -66,29 +105,39 @@ export function SubscriptionScreen() {
               </div>
             </div>
 
-            {downgrade ? (
-              <p className="text-xs text-text-muted">
-                To move to Starter, ask us to cancel your subscription from Help & Support.
-              </p>
-            ) : null}
-            {setPlan.error ? (
+            {error ? (
               <p className="text-xs text-danger">
-                {setPlan.error instanceof Error
-                  ? setPlan.error.message
-                  : 'Could not update your plan.'}
+                {error instanceof Error ? error.message : 'Could not update your plan.'}
               </p>
             ) : null}
 
-            <Button
-              loading={setPlan.isPending}
-              disabled={!changed || downgrade || !choice?.purchasable}
-              onClick={async () => {
-                // Opens Stripe Checkout; the plan updates once payment completes.
-                if (choice) await setPlan.mutateAsync(choice.plan);
-              }}
-            >
-              {choice && changed && !downgrade ? `Upgrade to ${choice.plan}` : 'Update plan'}
-            </Button>
+            {toStarter && paying ? (
+              endsAt ? (
+                <p className="text-xs text-text-muted">Your plan is already set to end. Keep it from the card above.</p>
+              ) : (
+                <Button variant="secondary" loading={cancelPlan.isPending} onClick={() => void cancel()}>
+                  Cancel subscription
+                </Button>
+              )
+            ) : (
+              <>
+                {paying && changed && choice ? (
+                  <p className="text-xs text-text-muted">
+                    Your plan changes now. Stripe adjusts your next bill for the rest of this period.
+                  </p>
+                ) : null}
+                <Button
+                  loading={setPlan.isPending}
+                  disabled={!changed || !choice?.purchasable}
+                  onClick={() => {
+                    // From Starter this opens Stripe Checkout; a paying brand switches in place.
+                    if (choice) setPlan.mutate(choice.plan, { onSuccess: () => setSelected(null) });
+                  }}
+                >
+                  {choice && changed ? `${paying ? 'Switch' : 'Upgrade'} to ${choice.plan}` : 'Update plan'}
+                </Button>
+              </>
+            )}
           </>
         )}
       </AsyncContent>

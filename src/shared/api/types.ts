@@ -343,11 +343,22 @@ export interface BrandBilling {
   paymentMethodLast4?: string;
   /** Platform fee added on top of each campaign budget at checkout, in basis points. */
   platformFeeBps?: number;
+  /** Set once the brand cancels: the paid plan runs until this date, then Starter applies. */
+  planEndsAt?: string;
   /**
    * Prepaid balance brands spend on campaigns (USD). Held by Zeyoo; it can only fund
    * campaigns and cannot be withdrawn.
    */
   walletBalance?: Money;
+}
+
+/**
+ * The result of choosing a plan: a Stripe Checkout page to finish paying (coming from
+ * Starter), or a switch already made on the existing subscription.
+ */
+export interface PlanChange {
+  checkoutUrl?: string;
+  changedInPlace: boolean;
 }
 
 /** A card payment into the brand wallet; settles once Stripe confirms it. */

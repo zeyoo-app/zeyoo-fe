@@ -1,5 +1,6 @@
 import type { Money } from '../money/money';
 import type {
+  PlanChange,
   FundFromWalletInput,
   WalletTopUp,
   CreatorPublicProfile,
@@ -172,7 +173,11 @@ export interface ZeyooApi {
   topUpWallet(amount: Money): Promise<WalletTopUp>;
   /** Money movements on the brand wallet: top-ups in, campaign funding out. */
   getBrandLedger(): Promise<BrandLedgerEntry[]>;
-  setBillingPlan(plan: BillingPlan): Promise<RedirectUrl>;
+  setBillingPlan(plan: BillingPlan): Promise<PlanChange>;
+  /** Ends the paid plan when the paid period runs out (back to Starter). */
+  cancelBillingPlan(): Promise<{ planEndsAt: string }>;
+  /** Keeps a paid plan that was set to end. */
+  resumeBillingPlan(): Promise<void>;
   setBrandPaymentMethod(): Promise<RedirectUrl>;
 
   // Profile, verification, socials
