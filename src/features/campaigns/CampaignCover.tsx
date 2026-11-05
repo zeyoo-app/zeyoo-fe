@@ -1,9 +1,13 @@
+'use client';
+
+import { useState } from 'react';
+
 import type { SocialPlatform } from '@/shared/api';
 import { cn } from '@/design-system';
 
 /**
- * A campaign's cover: a near-black panel with a green radial glow, seeded per
- * platform so each campaign reads distinctly (the mobile gradient, in CSS).
+ * A campaign's cover: the uploaded photo when there is one, otherwise a near-black
+ * panel with a green radial glow, seeded per platform (the mobile gradient, in CSS).
  */
 const GLOW_POSITION: Record<SocialPlatform, string> = {
   instagram: '50% 15%',
@@ -12,7 +16,28 @@ const GLOW_POSITION: Record<SocialPlatform, string> = {
   youtube: '35% 20%',
 };
 
-export function CampaignCover({ platform, className }: { platform: SocialPlatform; className?: string }) {
+export function CampaignCover({
+  platform,
+  imageUrl,
+  className,
+}: {
+  platform: SocialPlatform;
+  imageUrl?: string;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (imageUrl && !failed) {
+    return (
+      // A remote, user-uploaded photo of unknown size; next/image would need its host allow-listed.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={imageUrl}
+        alt=""
+        onError={() => setFailed(true)}
+        className={cn('w-full bg-[#0b120d] object-cover', className)}
+      />
+    );
+  }
   return (
     <div
       className={cn('relative overflow-hidden bg-[#0b120d]', className)}

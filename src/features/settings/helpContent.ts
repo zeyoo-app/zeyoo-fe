@@ -37,7 +37,7 @@ export const BRAND_HELP_DOCUMENT: HelpDocument = {
   faq: [
     {
       q: 'When are campaign funds charged?',
-      a: 'Your Wallet balance is charged once you fund and launch a campaign. You can add funds anytime from the Wallet tab.',
+      a: "When you launch a campaign you pay its budget plus your plan's platform fee, by card or from your wallet balance. You can add funds to your wallet anytime from the Wallet tab (minimum $50). Wallet funds can only be spent on campaigns and can't be withdrawn.",
     },
     {
       q: 'How do I review and pay creators?',

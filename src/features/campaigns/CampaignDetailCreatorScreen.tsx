@@ -8,6 +8,12 @@ import type { Campaign } from '@/shared/api';
 import { formatMoney, formatCampaignReward } from '@/shared/money/money';
 
 import { CampaignCover } from './CampaignCover';
+import {
+  CampaignAboutSection,
+  CampaignBriefSection,
+  CampaignReferencesSection,
+  CampaignRequirementsSection,
+} from './CampaignInfoSections';
 import { useCampaign } from './hooks';
 import { ParticipationSection } from './ParticipationSection';
 
@@ -25,7 +31,7 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
 
   return (
     <>
-      <CampaignCover platform={campaign.platform} className="mb-5 h-40 rounded-2xl" />
+      <CampaignCover platform={campaign.platform} imageUrl={campaign.coverImageUrl} className="mb-5 h-40 rounded-2xl" />
 
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -44,35 +50,10 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
         </div>
       </Card>
 
-      <p className="mt-5 text-sm leading-relaxed text-text-muted">{campaign.brief}</p>
-      {campaign.goals || campaign.audience ? (
-        <Card className="mt-4 flex flex-col gap-3">
-          {campaign.goals ? (
-            <div>
-              <p className="text-sm font-medium text-text">Goals</p>
-              <p className="text-sm text-text-muted">{campaign.goals}</p>
-            </div>
-          ) : null}
-          {campaign.audience ? (
-            <div>
-              <p className="text-sm font-medium text-text">Audience</p>
-              <p className="text-sm text-text-muted">{campaign.audience}</p>
-            </div>
-          ) : null}
-        </Card>
-      ) : null}
-
-      {campaign.requirements.hashtags.length || campaign.requirements.mentions.length ? (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {campaign.requirements.hashtags.map((tag) => (
-            <Badge key={tag} tone="accent">{tag}</Badge>
-          ))}
-          {campaign.requirements.mentions.map((mention) => (
-            <Badge key={mention} tone="neutral">{mention}</Badge>
-          ))}
-          {campaign.requirements.disclosureRequired ? <Badge tone="warning">Ad disclosure required</Badge> : null}
-        </div>
-      ) : null}
+      <CampaignBriefSection campaign={campaign} />
+      <CampaignRequirementsSection campaign={campaign} />
+      <CampaignAboutSection campaign={campaign} />
+      <CampaignReferencesSection campaign={campaign} />
 
       <button
         type="button"

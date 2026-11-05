@@ -2,27 +2,40 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { BarChart3, Pencil, UserPlus, XCircle } from 'lucide-react';
 
 import {
+  ActionsMenu,
   AsyncContent,
   Avatar,
   Badge,
   Button,
   Card,
   ChoiceChips,
+  EmptyState,
   Field,
   Modal,
   ProgressBar,
+  TabBar,
   Textarea,
   useConfirm,
   type Choice,
+  type MenuAction,
 } from '@/design-system';
 import type { Campaign, FraudCase, RiskLevel, Submission } from '@/shared/api';
-import { formatCount, formatMoney } from '@/shared/money/money';
+import { formatCampaignReward, formatCount, formatMoney } from '@/shared/money/money';
+import { platformsLabel } from '@/shared/format/platform';
 import { BackButton } from '@/shared/nav/BackButton';
 
-import { ApplicationsReview } from './ApplicationsReview';
+import { ApplicationsReview, visibleApplications } from './ApplicationsReview';
 import { CampaignCover } from './CampaignCover';
+import {
+  CampaignAboutSection,
+  CampaignBriefSection,
+  CampaignReferencesSection,
+  CampaignRequirementsSection,
+  CampaignScheduleSection,
+} from './CampaignInfoSections';
 import { useOpenDispute } from '@/shared/disputes/hooks';
 import {
   useCampaign,
@@ -31,7 +44,12 @@ import {
   useFlagCreator,
   useSetCampaignStatus,
 } from './hooks';
-import { useCampaignSubmissions, useReviewSubmission, useTrackViews } from '../submissions/hooks';
+import {
+  useCampaignApplications,
+  useCampaignSubmissions,
+  useReviewSubmission,
+  useTrackViews,
+} from '../submissions/hooks';
 
 export function CampaignDetailBrandScreen({ campaignId }: { campaignId: string }) {
   const campaignQuery = useCampaign(campaignId);
@@ -43,37 +61,12 @@ export function CampaignDetailBrandScreen({ campaignId }: { campaignId: string }
   );
 }
 
-/** The one action the current lifecycle state allows: publish a draft, close a live
- *  campaign. The caller hides it entirely once the campaign is closed. */
-function LifecycleAction({
-  campaign,
-  onClose,
-  loading,
-}: {
-  campaign: Campaign;
-  onClose: () => void;
-  loading: boolean;
-}) {
-  const setStatus = useSetCampaignStatus(campaign.id);
-
-  if (campaign.status === 'draft') {
-    return (
-      <Button size="sm" fullWidth={false} loading={loading} onClick={() => setStatus.mutate('live')}>
-        Publish
-      </Button>
-    );
-  }
-
-  return (
-    <Button variant="secondary" size="sm" fullWidth={false} loading={loading} onClick={onClose}>
-      Close Campaign
-    </Button>
-  );
-}
+type CampaignTab = 'overview' | 'applications' | 'submissions';
 
 function CampaignDetail({ campaign }: { campaign: Campaign }) {
   const router = useRouter();
   const submissionsQuery = useCampaignSubmissions(campaign.id);
+  const applicationsQuery = useCampaignApplications(campaign.id);
   const setStatus = useSetCampaignStatus(campaign.id);
   const confirm = useConfirm();
   const fraudCases = useCampaignFraudCases(campaign.id);
@@ -96,101 +89,148 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
   const spent = { ...campaign.budgetSpent, minorUnits: spentMinor };
   const spentRatio = campaign.budget.minorUnits ? spent.minorUnits / campaign.budget.minorUnits : 0;
 
+  const [tab, setTab] = useState<CampaignTab>('overview');
+  const pendingApplications = visibleApplications(applicationsQuery.data).filter(
+    (application) => application.status === 'pending',
+  ).length;
+  const pendingSubmissions = (submissionsQuery.data ?? []).filter((submission) => submission.status === 'pending').length;
+
+  const actions: MenuAction[] = [
+    ...(campaign.status === 'live'
+      ? [
+          {
+            key: 'invite',
+            label: 'Invite creators',
+            icon: UserPlus,
+            onSelect: () => router.push(`/brand/creators?campaign=${campaign.id}`),
+          },
+        ]
+      : []),
+    {
+      key: 'report',
+      label: 'View report',
+      icon: BarChart3,
+      onSelect: () => router.push(`/brand/campaigns/${campaign.id}/report`),
+    },
+    ...(campaign.status !== 'closed'
+      ? [
+          {
+            key: 'edit',
+            label: 'Edit campaign',
+            icon: Pencil,
+            onSelect: () => router.push(`/brand/campaigns/${campaign.id}/edit`),
+          },
+        ]
+      : []),
+    ...(campaign.status === 'live'
+      ? [{ key: 'close', label: 'Close campaign', icon: XCircle, destructive: true, onSelect: () => void closeCampaign() }]
+      : []),
+  ];
+
   return (
     <>
-      {/* The lifecycle action belongs to the top bar, opposite the back affordance, and
-          disappears once the campaign is closed — there is nothing left to do. */}
       <div className="mb-4 flex items-center justify-between gap-3">
         <BackButton />
-        {campaign.status !== 'closed' ? (
-          <LifecycleAction campaign={campaign} onClose={closeCampaign} loading={setStatus.isPending} />
-        ) : null}
-      </div>
-
-      <CampaignCover platform={campaign.platform} className="mb-5 h-40 rounded-2xl" />
-
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-text">{campaign.title}</h1>
-        <p className="mt-0.5 text-text-muted">{campaign.brandName}</p>
-      </div>
-
-      <Card className="mt-5 flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Budget spent</p>
-          <p className="text-xs text-text-tertiary">{campaign.submissionCount} submissions</p>
+        <div className="flex items-center gap-2">
+          {campaign.status === 'draft' ? (
+            <Button size="sm" fullWidth={false} loading={setStatus.isPending} onClick={() => setStatus.mutate('live')}>
+              Publish
+            </Button>
+          ) : null}
+          <ActionsMenu ariaLabel="Campaign actions" actions={actions} />
         </div>
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-numeric text-2xl leading-none text-green-text">
-            {formatMoney(spent)}
-          </span>
-          <span className="font-numeric text-sm text-text-muted">/ {formatMoney(campaign.budget)}</span>
-        </div>
-        <ProgressBar value={spentRatio} tone={spentRatio > 0.9 ? 'warning' : 'accent'} label="Budget spent" />
-      </Card>
-
-      {/* Even grid on phones (Invite spans the row), a single row of buttons on wider screens. */}
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        {campaign.status === 'live' ? (
-          <Button
-            variant="secondary"
-            className="col-span-2 sm:w-auto"
-            onClick={() => router.push(`/brand/creators?campaign=${campaign.id}`)}
-          >
-            Invite creators
-          </Button>
-        ) : null}
-        <Button
-          variant="secondary"
-          className="sm:w-auto"
-          onClick={() => router.push(`/brand/campaigns/${campaign.id}/report`)}
-        >
-          View report
-        </Button>
-        {campaign.status !== 'closed' ? (
-          <Button
-            variant="secondary"
-            className="sm:w-auto"
-            onClick={() => router.push(`/brand/campaigns/${campaign.id}/edit`)}
-          >
-            Edit campaign
-          </Button>
-        ) : null}
       </div>
 
-      {campaign.status === 'closed' ? (
-        <Card className="mt-5">
-          <p className="text-sm text-text-muted">This campaign is closed.</p>
-        </Card>
-      ) : null}
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="font-display text-2xl font-semibold text-text">{campaign.title}</h1>
+          <p className="mt-0.5 text-text-muted">{campaign.brandName}</p>
+        </div>
+        {campaign.status === 'live' ? <Badge tone="success">Live</Badge> : null}
+      </div>
 
-      <p className="mt-5 text-sm leading-relaxed text-text-muted">{campaign.brief}</p>
-
-      <EarningsReviews
-        cases={fraudCases.data ?? []}
-        isBusy={closeCase.isPending}
-        onClose={(caseId, action) => closeCase.mutate({ caseId, action })}
+      <TabBar<CampaignTab>
+        ariaLabel="Campaign sections"
+        tabs={[
+          { value: 'overview', label: 'Overview' },
+          { value: 'applications', label: 'Applications', badge: pendingApplications },
+          { value: 'submissions', label: 'Submissions', badge: pendingSubmissions },
+        ]}
+        value={tab}
+        onChange={setTab}
       />
 
-      <ApplicationsReview campaignId={campaign.id} />
+      <div className="mt-5">
+        {tab === 'overview' ? (
+          <>
+            <CampaignCover
+              platform={campaign.platform}
+              imageUrl={campaign.coverImageUrl}
+              className="mb-4 h-48 rounded-2xl"
+            />
+            <div className="mb-4 flex flex-wrap gap-2">
+              <Badge tone="neutral">{platformsLabel(campaign.platforms)}</Badge>
+              <Badge tone="success" className="font-numeric">
+                {formatCampaignReward(campaign)}
+              </Badge>
+            </div>
 
-      <h2 className="mb-3 mt-8 font-display text-lg font-semibold text-text">
-        Submissions{submissionsQuery.data ? ` (${submissionsQuery.data.length})` : ''}
-      </h2>
-      <AsyncContent isLoading={submissionsQuery.isLoading} isError={submissionsQuery.isError} data={submissionsQuery.data}>
-        {(submissions) => (
-          <div className="flex flex-col gap-3">
-            {submissions.map((submission) => (
-              <SubmissionRow key={submission.id} submission={submission} campaignId={campaign.id} />
-            ))}
-          </div>
-        )}
-      </AsyncContent>
+            <Card className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Budget spent</p>
+                <p className="text-xs text-text-tertiary">{campaign.submissionCount} submissions</p>
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-numeric text-2xl leading-none text-green-text">{formatMoney(spent)}</span>
+                <span className="font-numeric text-sm text-text-muted">/ {formatMoney(campaign.budget)}</span>
+              </div>
+              <ProgressBar value={spentRatio} tone={spentRatio > 0.9 ? 'warning' : 'accent'} label="Budget spent" />
+            </Card>
 
-      <div className="mt-8">
-        <Button variant="ghost" fullWidth={false} onClick={() => setReporting(true)}>
-          Report a problem with this campaign
-        </Button>
+            {campaign.status === 'closed' ? (
+              <Card className="mt-4">
+                <p className="text-sm text-text-muted">This campaign is closed.</p>
+              </Card>
+            ) : null}
+
+            <EarningsReviews
+              cases={fraudCases.data ?? []}
+              isBusy={closeCase.isPending}
+              onClose={(caseId, action) => closeCase.mutate({ caseId, action })}
+            />
+            <CampaignScheduleSection campaign={campaign} />
+            <CampaignBriefSection campaign={campaign} />
+            <CampaignRequirementsSection campaign={campaign} />
+            <CampaignAboutSection campaign={campaign} />
+            <CampaignReferencesSection campaign={campaign} />
+
+            <div className="mt-8">
+              <Button variant="ghost" fullWidth={false} onClick={() => setReporting(true)}>
+                Report a problem with this campaign
+              </Button>
+            </div>
+          </>
+        ) : null}
+
+        {tab === 'applications' ? <ApplicationsReview campaignId={campaign.id} /> : null}
+
+        {tab === 'submissions' ? (
+          <AsyncContent isLoading={submissionsQuery.isLoading} isError={submissionsQuery.isError} data={submissionsQuery.data}>
+            {(submissions) =>
+              submissions.length === 0 ? (
+                <EmptyState title="No submissions yet" description="They'll appear here as creators post." />
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {submissions.map((submission) => (
+                    <SubmissionRow key={submission.id} submission={submission} campaignId={campaign.id} />
+                  ))}
+                </div>
+              )
+            }
+          </AsyncContent>
+        ) : null}
       </div>
+
       <Modal open={reporting} onClose={() => setReporting(false)} title="Report a problem">
         <p className="text-sm text-text-muted">
           Tell support what went wrong. They will reply in the dispute thread.

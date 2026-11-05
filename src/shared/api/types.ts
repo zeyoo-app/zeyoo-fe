@@ -343,6 +343,36 @@ export interface BrandBilling {
   paymentMethodLast4?: string;
   /** Platform fee added on top of each campaign budget at checkout, in basis points. */
   platformFeeBps?: number;
+  /** Set once the brand cancels: the paid plan runs until this date, then Starter applies. */
+  planEndsAt?: string;
+  /**
+   * Prepaid balance brands spend on campaigns (USD). Held by Zeyoo; it can only fund
+   * campaigns and cannot be withdrawn.
+   */
+  walletBalance?: Money;
+}
+
+/**
+ * The result of choosing a plan: a Stripe Checkout page to finish paying (coming from
+ * Starter), or a switch already made on the existing subscription.
+ */
+export interface PlanChange {
+  checkoutUrl?: string;
+  changedInPlace: boolean;
+}
+
+/** A card payment into the brand wallet; settles once Stripe confirms it. */
+export interface WalletTopUp {
+  status: 'pending' | 'succeeded' | 'failed';
+  amount: Money;
+  /** Stripe's hosted payment page; absent when the payment settled without it. */
+  checkoutUrl?: string;
+}
+
+export interface FundFromWalletInput {
+  campaignId: string;
+  /** The campaign budget; the plan fee is added on top by the backend. */
+  amount: Money;
 }
 
 /** A hosted (Stripe) page the client must open to finish a flow: payout setup, card entry, checkout. */
@@ -435,6 +465,28 @@ export interface CreatorDirectoryEntry {
   averageViews: number;
   /** Zeyoo-verified creator (profile review passed). */
   verified: boolean;
+}
+
+/** A creator as a brand sees them when weighing an application. */
+export interface CreatorPublicProfile {
+  id: string;
+  displayName: string;
+  handle: string;
+  avatarUrl?: string;
+  headline?: string;
+  bio?: string;
+  /** ISO 3166-1 alpha-2, e.g. "SA". */
+  country?: string;
+  /** Zeyoo-verified creator (profile review passed). */
+  verified: boolean;
+  accounts: { platform: SocialPlatform; handle: string; verified: boolean }[];
+  trackRecord: {
+    /** Campaigns a brand approved them to join. */
+    campaignsJoined: number;
+    /** Posts brands approved. */
+    approvedSubmissions: number;
+    memberSince: string;
+  };
 }
 
 export interface CreatorDirectoryFilter {

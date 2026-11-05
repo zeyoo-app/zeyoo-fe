@@ -70,6 +70,19 @@ export function useFundCampaign() {
   return useMutation({ mutationFn: api.fundCampaign });
 }
 
+/** Pays a campaign from the brand wallet; the wallet balance and activity change at once. */
+export function useFundFromWallet() {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.fundCampaignFromWallet,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.brandBilling });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.brandLedger });
+    },
+  });
+}
+
 export function useSetCampaignStatus(campaignId: string) {
   const api = useApi();
   const queryClient = useQueryClient();
@@ -79,6 +92,16 @@ export function useSetCampaignStatus(campaignId: string) {
       queryClient.setQueryData(queryKeys.campaign(campaignId), updated);
       queryClient.invalidateQueries({ queryKey: queryKeys.brandCampaigns });
     },
+  });
+}
+
+/** One creator's profile and Zeyoo track record, fetched once a brand opens it. */
+export function useCreatorPublicProfile(creatorId: string | null) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.creatorPublicProfile(creatorId ?? ''),
+    queryFn: () => api.getCreatorPublicProfile(creatorId as string),
+    enabled: Boolean(creatorId),
   });
 }
 

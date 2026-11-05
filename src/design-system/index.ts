@@ -27,6 +27,10 @@ export { MultiChoiceChips } from './ui/MultiChoiceChips';
 export { ImageUpload } from './ui/ImageUpload';
 export type { PickedImage } from './ui/ImageUpload';
 export { ProgressBar } from './ui/ProgressBar';
+export { TabBar } from './ui/TabBar';
+export type { TabItem } from './ui/TabBar';
+export { ActionsMenu } from './ui/ActionsMenu';
+export type { MenuAction } from './ui/ActionsMenu';
 
 export { PageHeader } from './patterns/PageHeader';
 export { SectionHeader } from './patterns/SectionHeader';

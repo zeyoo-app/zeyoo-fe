@@ -277,6 +277,9 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     async fundCampaign({ campaignId, amount, client }) {
       return mapFunding(await request<BackendFunding>('POST', `/campaigns/${campaignId}/funding`, { amountMinor: amount.minorUnits, client }));
     },
+    async fundCampaignFromWallet({ campaignId, amount }) {
+      return mapFunding(await request<BackendFunding>('POST', `/campaigns/${campaignId}/funding/wallet`, { amountMinor: amount.minorUnits }));
+    },
     async setCampaignStatus({ campaignId, status }) {
       if (status === 'draft') throw new Error('Published campaigns cannot be returned to draft.');
       return mapCampaign(await request<BackendCampaign>('POST', `/campaigns/${campaignId}/${status === 'live' ? 'publish' : 'close'}`), organizationName);
@@ -366,6 +369,21 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
       return await readCreatorProfile();
     },
     async connectSocial(platform) { await request('POST', '/creator-profile/social-accounts', { platform: platform.toUpperCase(), handle: platform }); return await readCreatorProfile(); },
+    async getCreatorPublicProfile(creatorId) {
+      const creator = await request<BackendProfile & { userId: string; country?: string | null; socialAccounts?: BackendSocialAccount[]; trackRecord: { campaignsJoined: number; approvedSubmissions: number; memberSince: string } }>('GET', `/creators/${creatorId}`);
+      return {
+        id: creator.userId,
+        displayName: creator.displayName,
+        handle: creator.username ? `@${creator.username}` : '',
+        avatarUrl: creator.avatarUrl ?? undefined,
+        headline: creator.headline ?? undefined,
+        bio: creator.bio ?? undefined,
+        country: creator.country ?? undefined,
+        verified: creator.verificationStatus === 'VERIFIED',
+        accounts: (creator.socialAccounts ?? []).map((account) => ({ platform: platform(account.platform), handle: account.handle, verified: Boolean(account.verifiedAt) })),
+        trackRecord: creator.trackRecord,
+      };
+    },
     async getCreatorDirectory(filter) {
       const query = new URLSearchParams();
       if (filter?.platform) query.set('platform', filter.platform.toUpperCase());
@@ -396,8 +414,23 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     async requestWithdrawal({ amount }) { await request('POST', '/me/withdrawals', { amountMinor: amount.minorUnits, currencyCode: amount.currency }); return this.getWallet(); },
     async getBrandLedger() { const id = await currentOrganizationId(); return request('GET', `/organizations/${id}/ledger`); },
     async getBrandBilling() { const id = await currentOrganizationId(); return request('GET', `/organizations/${id}/billing`); },
+    async topUpWallet(amount) {
+      const id = await currentOrganizationId();
+      const topUp = await request<{ amountMinor: number; currencyCode: string; status: 'PENDING' | 'SUCCEEDED' | 'FAILED'; checkoutUrl: string | null }>('POST', `/organizations/${id}/wallet/top-ups`, { amountMinor: amount.minorUnits, client: 'web' });
+      return {
+        status: topUp.status === 'SUCCEEDED' ? 'succeeded' : topUp.status === 'FAILED' ? 'failed' : 'pending',
+        amount: { minorUnits: topUp.amountMinor, currency: topUp.currencyCode },
+        checkoutUrl: topUp.checkoutUrl ?? undefined,
+      };
+    },
     async getBillingPlans() { return (await request<BackendPlan[]>('GET', '/billing/plans')).map(mapPlan); },
-    async setBillingPlan(plan) { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/subscription/checkout`, { planKey: plan.toLowerCase() }); },
+    async setBillingPlan(plan) {
+      const id = await currentOrganizationId();
+      const result = await request<{ url: string | null; changed?: boolean }>('POST', `/organizations/${id}/subscription/checkout`, { planKey: plan.toLowerCase() });
+      return { checkoutUrl: result.url ?? undefined, changedInPlace: Boolean(result.changed) };
+    },
+    async cancelBillingPlan() { const id = await currentOrganizationId(); return request<{ planEndsAt: string }>('POST', `/organizations/${id}/subscription/cancel`); },
+    async resumeBillingPlan() { const id = await currentOrganizationId(); await request('POST', `/organizations/${id}/subscription/resume`); },
     async setBrandPaymentMethod() { const id = await currentOrganizationId(); return request('POST', `/organizations/${id}/payment-methods`); },
     async getDisputes() { return (await request<BackendDispute[]>('GET', '/disputes')).map(mapDispute); },
     async escalateDispute(disputeId) { return mapDispute(await request<BackendDispute>('POST', `/disputes/${disputeId}/escalate`)); },
