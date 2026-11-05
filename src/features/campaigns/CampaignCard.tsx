@@ -14,7 +14,7 @@ export function CampaignCard({ campaign, href }: { campaign: Campaign; href: str
       href={href}
       className="group block overflow-hidden rounded-2xl border border-border bg-surface transition-colors hover:border-primary/40"
     >
-      <CampaignCover platform={campaign.platform} className="h-36" />
+      <CampaignCover platform={campaign.platform} imageUrl={campaign.coverImageUrl} className="h-36" />
       <div className="p-4">
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="neutral">{platformsLabel(campaign.platforms)}</Badge>

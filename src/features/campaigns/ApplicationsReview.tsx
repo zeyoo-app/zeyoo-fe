@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { BadgeCheck, ChevronRight } from 'lucide-react';
 
-import { Avatar, Badge, Button, Card, Modal } from '@/design-system';
+import { Avatar, Badge, Button, Card, EmptyState, Modal } from '@/design-system';
 import type { CampaignApplication } from '@/shared/api';
 import { platformLabel } from '@/shared/format/platform';
 
@@ -25,16 +25,20 @@ const STATUS: Record<CampaignApplication['status'], { label: string; tone: 'neut
 export function ApplicationsReview({ campaignId }: { campaignId: string }) {
   const applications = useCampaignApplications(campaignId);
   const [openId, setOpenId] = useState<string | null>(null);
-  const list = (applications.data ?? []).filter((application) => application.status !== 'withdrawn');
-  if (list.length === 0) return null;
-  const pending = list.filter((application) => application.status === 'pending').length;
+  const list = visibleApplications(applications.data);
   const open = list.find((application) => application.id === openId) ?? null;
 
+  if (list.length === 0) {
+    return (
+      <EmptyState
+        title="No applications yet"
+        description="Creators who apply to join this campaign will appear here."
+      />
+    );
+  }
+
   return (
-    <section className="mt-8">
-      <h2 className="mb-3 font-display text-lg font-semibold text-text">
-        Applications ({pending > 0 ? `${pending} to review` : list.length})
-      </h2>
+    <section>
       <div className="flex flex-col gap-3">
         {list.map((application) => (
           <Card key={application.id} className="flex flex-col gap-3 p-4">
@@ -69,6 +73,11 @@ export function ApplicationsReview({ campaignId }: { campaignId: string }) {
       <ApplicantDialog campaignId={campaignId} application={open} onClose={() => setOpenId(null)} />
     </section>
   );
+}
+
+/** Withdrawn applications are the creator's own business and are not listed. */
+export function visibleApplications(applications: CampaignApplication[] | undefined): CampaignApplication[] {
+  return (applications ?? []).filter((application) => application.status !== 'withdrawn');
 }
 
 /** The applicant's profile, accounts and Zeyoo track record, with the decision at the end. */
