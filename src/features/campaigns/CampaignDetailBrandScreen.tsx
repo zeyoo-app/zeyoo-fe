@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { BarChart3, Pencil, UserPlus, XCircle } from 'lucide-react';
+import { BarChart3, LifeBuoy, Pencil, UserPlus, XCircle } from 'lucide-react';
 
 import {
   ActionsMenu,
@@ -122,6 +122,8 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
           },
         ]
       : []),
+    // A support ticket about this campaign: a payment, a creator, a submission.
+    { key: 'help', label: 'Raise a dispute', icon: LifeBuoy, onSelect: () => setReporting(true) },
     ...(campaign.status === 'live'
       ? [{ key: 'close', label: 'Close campaign', icon: XCircle, destructive: true, onSelect: () => void closeCampaign() }]
       : []),
@@ -204,11 +206,6 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
             <CampaignAboutSection campaign={campaign} />
             <CampaignReferencesSection campaign={campaign} />
 
-            <div className="mt-8">
-              <Button variant="ghost" fullWidth={false} onClick={() => setReporting(true)}>
-                Report a problem with this campaign
-              </Button>
-            </div>
           </>
         ) : null}
 
@@ -231,7 +228,7 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
         ) : null}
       </div>
 
-      <Modal open={reporting} onClose={() => setReporting(false)} title="Report a problem">
+      <Modal open={reporting} onClose={() => setReporting(false)} title="Raise a dispute">
         <p className="text-sm text-text-muted">
           Tell support what went wrong. They will reply in the dispute thread.
         </p>
