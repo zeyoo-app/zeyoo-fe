@@ -8,6 +8,10 @@ export const queryKeys = {
   campaignFraudCases: (campaignId: string) => ['campaigns', campaignId, 'fraud-cases'] as const,
   campaignReport: (campaignId: string) => ['campaigns', campaignId, 'report'] as const,
   campaignSubmissions: (campaignId: string) => ['campaigns', campaignId, 'submissions'] as const,
+  /** Prefix for everything about one submission, so one invalidation refreshes it all. */
+  submission: (submissionId: string) => ['submissions', submissionId] as const,
+  submissionHistory: (submissionId: string) => ['submissions', submissionId, 'history'] as const,
+  submissionViews: (submissionId: string) => ['submissions', submissionId, 'views'] as const,
   discoverCampaigns: ['discover', 'campaigns'] as const,
   mySubmissions: ['creator', 'submissions'] as const,
   myApplications: ['creator', 'applications'] as const,

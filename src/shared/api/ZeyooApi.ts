@@ -64,6 +64,8 @@ import type {
   Role,
   Session,
   Submission,
+  SubmissionHistory,
+  PostViews,
   SubmitParticipationInput,
   ResubmitInput,
   MyApplication,
@@ -130,7 +132,12 @@ export interface ZeyooApi {
   getCampaignSubmissions(campaignId: string): Promise<Submission[]>;
   reviewSubmission(input: ReviewSubmissionInput): Promise<Submission>;
   deleteAccount(): Promise<void>;
+  /** Every version of a submission and every review decision on it. */
+  getSubmissionHistory(submissionId: string): Promise<SubmissionHistory>;
+  /** The latest view reading of each post in a submission. */
+  getSubmissionViews(submissionId: string): Promise<PostViews[]>;
   recordSubmissionViews(input: RecordViewsInput): Promise<ViewTrackingOutcome>;
+  /** Reads every post's views from its platform. */
   syncSubmissionViews(submissionId: string): Promise<ViewTrackingOutcome>;
   getMySubmissions(): Promise<CreatorSubmission[]>;
   submitParticipation(input: SubmitParticipationInput): Promise<CreatorSubmission>;

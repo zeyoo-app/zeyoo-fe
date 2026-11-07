@@ -9,6 +9,9 @@ export type Role = 'brand' | 'creator';
 
 export type SocialPlatform = 'instagram' | 'tiktok' | 'snapchat' | 'youtube';
 
+/** A platform a submitted post can be on (X campaigns are possible on the backend). */
+export type PostPlatform = SocialPlatform | 'x';
+
 export type CampaignStatus = 'draft' | 'live' | 'closed';
 
 export type SubmissionStatus = 'pending' | 'needs_changes' | 'approved' | 'rejected';
@@ -130,7 +133,10 @@ export interface Campaign {
   status: CampaignStatus;
   brief: string;
   requirements: CampaignRequirements;
+  /** Every submission to the campaign; filled in only for the brand's own team. */
   submissionCount: number;
+  /** Submissions still waiting for the brand's decision. */
+  pendingSubmissionCount: number;
   referenceMaterials: ReferenceMaterial[];
 }
 
@@ -194,14 +200,21 @@ export interface Submission {
   /** The creator's display name, when the backend could resolve it. */
   creatorName?: string;
   creatorAvatarUrl?: string;
-  /** The post is on a platform account the creator verified by signing in. */
+  /** Every post is on a platform account the creator verified by signing in. */
   accountVerified?: boolean;
+  /** The posts' platforms the creator has a verified account on. */
+  verifiedPlatforms?: PostPlatform[];
   /** A fraud review is stopping this creator's new earnings on the campaign. */
   earningsPaused?: boolean;
   /** Engagement risk worked out from the latest readings. */
   risk?: RiskLevel;
+  /** The uploaded video, or the first post's link. */
   postUrl: string;
   kind: SubmissionKind;
+  /** The published posts in the latest version, one per platform; empty for an upload. */
+  posts: SubmissionPost[];
+  /** The creator's note with the latest version. */
+  note?: string;
   views: number;
   earning: Money;
   status: SubmissionStatus;
@@ -224,6 +237,50 @@ export interface CreatorSubmission extends Submission {
   capReached: boolean;
 }
 
+/** One published post in a submission. */
+export interface SubmissionPost {
+  platform: PostPlatform;
+  url: string;
+}
+
+/** A submission with every version the creator sent and every decision on it. */
+export interface SubmissionHistory {
+  id: string;
+  createdAt: string;
+  revisions: SubmissionRevision[];
+  reviews: SubmissionReviewEntry[];
+}
+
+export interface SubmissionRevision {
+  id: string;
+  createdAt: string;
+  kind: SubmissionKind;
+  /** The uploaded video, or the first post's link. */
+  url: string;
+  posts: SubmissionPost[];
+  note?: string;
+}
+
+export interface SubmissionReviewEntry {
+  revisionId: string;
+  decision: ReviewDecision;
+  note?: string;
+  createdAt: string;
+}
+
+/** A post's latest view reading; `url` is missing for views entered for an uploaded video. */
+export interface PostViews {
+  platform: PostPlatform;
+  url?: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  source?: 'manual' | 'platform';
+  /** When the latest reading was taken; missing until one is recorded. */
+  capturedAt?: string;
+}
+
 export type ReviewDecision = 'approve' | 'reject' | 'request_changes';
 
 export interface ReviewSubmissionInput {
@@ -237,6 +294,8 @@ export type ConnectablePlatform = 'instagram' | 'tiktok' | 'youtube' | 'snapchat
 
 export interface RecordViewsInput {
   submissionId: string;
+  /** Which post the count is for; may be left out when there is one post. */
+  platform?: PostPlatform;
   views: number;
 }
 
@@ -248,17 +307,14 @@ export interface ViewTrackingOutcome {
   message?: string;
 }
 
-export interface ResubmitInput {
-  submissionId: string;
-  postUrl: string;
-  kind: SubmissionKind;
-}
+/** A link submission sends `posts`; an upload sends the video's `videoUrl`. */
+export type SubmissionContent =
+  | { kind: 'link'; posts: SubmissionPost[] }
+  | { kind: 'upload'; videoUrl: string };
 
-export interface SubmitParticipationInput {
-  campaignId: string;
-  postUrl: string;
-  kind: SubmissionKind;
-}
+export type ResubmitInput = SubmissionContent & { submissionId: string };
+
+export type SubmitParticipationInput = SubmissionContent & { campaignId: string };
 
 // -------------------------------------------------------------------------------------
 // Dashboard
