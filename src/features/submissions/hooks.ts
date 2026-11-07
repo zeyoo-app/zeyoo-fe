@@ -5,6 +5,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys, useApi } from '@/shared/api';
 import type {
   ApplyToCampaignInput,
+  PostPlatform,
+  ViewTrackingOutcome,
   ResubmitInput,
   ReviewApplicationInput,
   ReviewSubmissionInput,
@@ -19,28 +21,63 @@ export function useCampaignSubmissions(campaignId: string) {
   });
 }
 
+/** Every version of one submission and every decision on it. */
+export function useSubmissionHistory(submissionId: string) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.submissionHistory(submissionId),
+    queryFn: () => api.getSubmissionHistory(submissionId),
+  });
+}
+
+/** The latest view reading of each post in one submission. */
+export function useSubmissionViews(submissionId: string, enabled = true) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.submissionViews(submissionId),
+    queryFn: () => api.getSubmissionViews(submissionId),
+    enabled,
+  });
+}
+
+/** Approve/reject a submission, then refresh the campaign's review list and its history. */
 export function useReviewSubmission(campaignId: string) {
   const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: ReviewSubmissionInput) => api.reviewSubmission(input),
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.campaignSubmissions(campaignId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.submission(input.submissionId) });
     },
   });
 }
 
-/** Record or sync a submission's views, then refresh the list so earnings show. */
+/** Typed-in view counts, one per post; a submission with one post may leave out the platform. */
+export interface ViewEntry {
+  platform?: PostPlatform;
+  views: number;
+}
+
+/**
+ * Syncs every post's views from its platform, or — with `entries` — saves typed-in counts
+ * one post at a time, then refreshes the list and the submission so earnings show.
+ */
 export function useTrackViews(campaignId: string) {
   const api = useApi();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { submissionId: string; views?: number }) =>
-      input.views === undefined
-        ? api.syncSubmissionViews(input.submissionId)
-        : api.recordSubmissionViews({ submissionId: input.submissionId, views: input.views }),
-    onSuccess: () => {
+    mutationFn: async (input: { submissionId: string; entries?: ViewEntry[] }): Promise<ViewTrackingOutcome> => {
+      if (!input.entries) return api.syncSubmissionViews(input.submissionId);
+      let outcome: ViewTrackingOutcome = { status: 'recorded', views: 0 };
+      for (const entry of input.entries) {
+        outcome = await api.recordSubmissionViews({ submissionId: input.submissionId, ...entry });
+      }
+      return outcome;
+    },
+    onSettled: (_data, _error, input) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.campaignSubmissions(campaignId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.submission(input.submissionId) });
     },
   });
 }

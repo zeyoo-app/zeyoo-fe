@@ -1,18 +1,19 @@
-import type { SocialPlatform } from '@/shared/api';
+import type { PostPlatform, SocialPlatform } from '@/shared/api';
 
 /**
  * Display names for the social platforms a creator can publish on. One record,
  * keyed by the whole union, so a newly added platform fails the build here
  * rather than rendering as a raw slug somewhere in the UI.
  */
-const LABELS: Record<SocialPlatform, string> = {
+const LABELS: Record<PostPlatform, string> = {
   instagram: 'Instagram',
   tiktok: 'TikTok',
   snapchat: 'Snapchat',
   youtube: 'YouTube',
+  x: 'X',
 };
 
-export function platformLabel(platform: SocialPlatform): string {
+export function platformLabel(platform: PostPlatform): string {
   return LABELS[platform];
 }
 
