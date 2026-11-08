@@ -12,11 +12,14 @@ export function Modal({
   onClose,
   title,
   children,
+  wide = false,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** A wider panel for dialogs that hold long or two-part content. */
+  wide?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -40,7 +43,7 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-md rounded-t-3xl border border-border bg-surface p-6 shadow-2xl sm:rounded-2xl"
+        className={`max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border border-border bg-surface p-6 shadow-2xl sm:rounded-2xl ${wide ? 'max-w-xl' : 'max-w-md'}`}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-display text-lg font-semibold text-text">{title}</h2>

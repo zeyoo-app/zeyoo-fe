@@ -693,23 +693,96 @@ export interface CampaignReport {
 // AI assistants
 // -------------------------------------------------------------------------------------
 
+export type AiLanguage = 'en' | 'ar';
+
 export interface AiBriefRequest {
-  product: string;
-  goal: string;
-  platform: SocialPlatform;
+  /** What the brand is promoting, in its own words. */
+  idea: string;
+  goal?: string;
+  title?: string;
+  platforms: SocialPlatform[];
+  contentType: CampaignContentType;
+  language: AiLanguage;
 }
 
-export interface AiBriefResult {
+export interface AiBriefDraft {
   brief: string;
-  suggestedHashtags: string[];
+  goals: string;
+  audience: string;
+  contentRules: string[];
+  hashtags: string[];
 }
 
 export interface AiIdeasRequest {
   campaignId: string;
+  /** Optional steer from the creator: their niche, a style, a constraint. */
+  focus?: string;
+  language: AiLanguage;
+}
+
+export interface AiContentIdea {
+  title: string;
+  hook: string;
+  talkingPoints: string[];
+  format: string;
 }
 
 export interface AiIdeasResult {
-  ideas: string[];
+  ideas: AiContentIdea[];
+}
+
+export interface AiResultMeta {
+  provider: string;
+  model: string;
+  promptVersion: string;
+  durationMs: number;
+}
+
+/** What the assistant is doing right now, for progress indicators. */
+export type AiStage = 'thinking' | 'writing' | 'checking' | 'fixing';
+
+/** A result still being written: any field may be missing or cut short. */
+export type AiPartial<T> = T extends (infer U)[]
+  ? AiPartial<U>[]
+  : T extends object
+    ? { [K in keyof T]?: AiPartial<T[K]> }
+    : T;
+
+/** Server-sent events from an assistant stream; the last is `result` or `error`. */
+export type AiStreamEvent<T> =
+  | { type: 'status'; stage: AiStage }
+  | { type: 'partial'; data: AiPartial<T> }
+  | { type: 'tool_call'; id: string; name: string; label: string }
+  | { type: 'tool_result'; id: string; name: string; ok: boolean }
+  | { type: 'result'; data: T; meta: AiResultMeta }
+  | { type: 'error'; code: string; message: string; retryable: boolean };
+
+export interface AiStreamOptions<T> {
+  signal: AbortSignal;
+  onEvent: (event: AiStreamEvent<T>) => void;
+}
+
+export type AiProviderId = 'ollama' | 'anthropic';
+
+export interface AiSettings {
+  active: { provider: AiProviderId; model: string };
+  /** Saved by staff, or the server's environment defaults. */
+  source: 'admin' | 'environment';
+  providers: { id: AiProviderId; configured: boolean; defaultModel: string }[];
+}
+
+export interface AiModel {
+  name: string;
+  details?: string;
+}
+
+export interface AiConnectionTest {
+  ok: boolean;
+  provider: string;
+  model: string;
+  latencyMs: number;
+  reply?: string;
+  error?: { code: string; message: string };
 }
 
 // -------------------------------------------------------------------------------------

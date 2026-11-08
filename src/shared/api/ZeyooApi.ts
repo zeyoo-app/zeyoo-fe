@@ -7,10 +7,15 @@ import type {
   BillingPlanDetails,
   CodeSent,
   RedirectUrl,
+  AiBriefDraft,
   AiBriefRequest,
-  AiBriefResult,
+  AiConnectionTest,
   AiIdeasRequest,
   AiIdeasResult,
+  AiModel,
+  AiProviderId,
+  AiSettings,
+  AiStreamOptions,
   AppNotification,
   BillingPlan,
   BrandBilling,
@@ -259,7 +264,12 @@ export interface ZeyooApi {
   getAdminFraudCases(status?: FraudCase['status']): Promise<FraudCase[]>;
   adminCloseFraudCase(input: { caseId: string; action: 'confirm' | 'clear' }): Promise<FraudCase>;
 
-  // AI assistants
-  generateBrief(input: AiBriefRequest): Promise<AiBriefResult>;
-  generateContentIdeas(input: AiIdeasRequest): Promise<AiIdeasResult>;
+  // AI assistants — streamed; resolves once the stream has ended.
+  streamCampaignBrief(input: AiBriefRequest, options: AiStreamOptions<AiBriefDraft>): Promise<void>;
+  streamContentIdeas(input: AiIdeasRequest, options: AiStreamOptions<AiIdeasResult>): Promise<void>;
+  getAiSettings(): Promise<AiSettings>;
+  getAiModels(provider: AiProviderId): Promise<AiModel[]>;
+  updateAiSettings(input: { provider: AiProviderId; model: string }): Promise<AiSettings>;
+  resetAiSettings(): Promise<AiSettings>;
+  testAiConnection(): Promise<AiConnectionTest>;
 }

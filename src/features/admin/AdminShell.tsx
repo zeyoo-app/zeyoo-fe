@@ -23,6 +23,7 @@ import {
   Tags,
   Users,
   X,
+  Sparkles,
 } from 'lucide-react';
 
 import { Logo, cn } from '@/design-system';
@@ -93,6 +94,7 @@ const ADMIN_NAV: AdminNavSection[] = [
     items: [
       { href: '/admin/staff', label: 'Staff', icon: ShieldCheck },
       { href: '/admin/categories', label: 'Categories', icon: Tags },
+      { href: '/admin/ai', label: 'AI assistants', icon: Sparkles },
       { href: '/admin/audit', label: 'Audit log', icon: ListChecks },
     ],
   },

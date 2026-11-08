@@ -8,6 +8,7 @@ import type { Campaign } from '@/shared/api';
 import { formatMoney, formatCampaignReward } from '@/shared/money/money';
 
 import { CampaignCover } from './CampaignCover';
+import { ContentIdeasCard } from './ContentIdeasCard';
 import {
   CampaignAboutSection,
   CampaignBriefSection,
@@ -54,6 +55,7 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
       <CampaignRequirementsSection campaign={campaign} />
       <CampaignAboutSection campaign={campaign} />
       <CampaignReferencesSection campaign={campaign} />
+      <ContentIdeasCard campaignId={campaign.id} />
 
       <button
         type="button"
