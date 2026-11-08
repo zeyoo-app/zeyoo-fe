@@ -1,8 +1,14 @@
 import { SESSION_EXPIRED_EVENT, STAFF_SESSION_EXPIRED_EVENT } from '../auth/sessionEvents';
 import type { Money } from '../money/money';
 import type { ZeyooApi } from './ZeyooApi';
+import { readServerSentEvents } from '../ai/sse';
 import { ApiError } from './errors';
 import type {
+  AiConnectionTest,
+  AiModel,
+  AiSettings,
+  AiStreamEvent,
+  AiStreamOptions,
   BillingPlan,
   BillingPlanDetails,
   Role,
@@ -43,22 +49,40 @@ import type {
   SocialAccount,
   StaffSession,
   Submission,
+  SubmissionContent,
+  SubmissionHistory,
+  SubmissionPost,
+  PostPlatform,
+  PostViews,
+  ReviewDecision,
   ViewTrackingOutcome,
 } from './types';
 
 interface BackendTokens { accessToken: string; refreshToken: string }
 interface BackendAccount { id: string; email: string | null; phone?: string | null; type: string; emailVerifiedAt?: string | null; phoneVerifiedAt?: string | null; organizations?: { organizationId: string; name: string }[]; hasCreatorProfile?: boolean }
 interface BackendOrganization { id: string; name: string; website?: string | null; industry?: string | null; logoUrl?: string | null }
-interface BackendCampaign { id: string; title: string; description: string; guidelines?: string | null; platform: string; platforms?: string[]; maxRewardPerCreatorAmount?: number | null; hashtags?: string[]; mentions?: string[]; referenceMaterials?: { name: string; url: string }[]; status: string; currencyCode: string; budgetAmount: number; rewardAmount: number; organization?: { name?: string }; organizationId: string; categoryId?: string | null; startDate?: string; endDate?: string; rewardType?: string; goals?: string | null; audience?: string | null; contentType?: string; coverImageUrl?: string | null }
+interface BackendCampaign { id: string; submissionCount?: number; pendingSubmissionCount?: number; title: string; description: string; guidelines?: string | null; platform: string; platforms?: string[]; maxRewardPerCreatorAmount?: number | null; hashtags?: string[]; mentions?: string[]; referenceMaterials?: { name: string; url: string }[]; status: string; currencyCode: string; budgetAmount: number; rewardAmount: number; organization?: { name?: string }; organizationId: string; categoryId?: string | null; startDate?: string; endDate?: string; rewardType?: string; goals?: string | null; audience?: string | null; contentType?: string; coverImageUrl?: string | null }
 interface BackendFunding { fundingId: string; checkoutUrl?: string | null; amountMinor: number; feeMinor?: number; currencyCode: string; status?: 'PENDING' | 'SUCCEEDED' | 'FAILED' }
 interface BackendPlan { key: string; name: string; priceMinor: number; priceMinorSar: number | null; currencyCode: string; stripePriceId: string | null; maxActiveCampaigns: number | null; platformFeeBps: number; allowsPrivateCampaigns: boolean }
 interface BackendProfile { displayName: string; username?: string; avatarUrl?: string | null; headline?: string | null; bio?: string | null; verificationStatus?: string; verificationNote?: string | null }
 interface BackendSubmission {
-  id: string; campaignId: string; status: string; creatorUserId: string;
-  revisions?: { contentType: string; contentUrl: string }[];
-  reviews?: { decision: string; note: string | null; createdAt: string }[];
+  id: string; campaignId: string; status: string; creatorUserId: string; createdAt?: string;
+  revisions?: BackendRevision[];
+  reviews?: { revisionId?: string; decision: string; note: string | null; createdAt: string }[];
   creator?: { displayName: string; username: string; avatarUrl: string | null } | null;
   accountVerified?: boolean;
+  verifiedPlatforms?: string[];
+}
+interface BackendRevision {
+  id?: string; contentType: string; contentUrl: string; note?: string | null; createdAt?: string;
+  /** Missing from servers older than per-platform posts. */
+  posts?: { platform: string; url: string }[];
+}
+interface BackendSubmissionViews {
+  posts: {
+    platform: string; url: string | null; views: number; likes: number; comments: number; shares: number;
+    source: 'MANUAL' | 'PLATFORM_API' | null; capturedAt: string | null;
+  }[];
 }
 interface BackendInvitation {
   id: string; campaignId: string; creatorUserId: string; status: string;
@@ -175,6 +199,30 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     return response.json() as Promise<T>;
   }
 
+  /**
+   * Opens an assistant's server-sent-event stream and forwards each event. Errors
+   * before the stream opens (validation, access) throw like any request; failures
+   * after it opens arrive as an `error` event. Aborting the signal cancels the run.
+   */
+  async function streamAssistant<T>(path: string, body: unknown, options: AiStreamOptions<T>, allowRetry = true): Promise<void> {
+    const current = await token();
+    const response = await fetch(`${root}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...(current ? { Authorization: `Bearer ${current}` } : {}) },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+      signal: options.signal,
+    });
+    if (response.status === 401 && accessToken && allowRetry) {
+      accessToken = null;
+      if (await refreshAccessToken()) return streamAssistant(path, body, options, false);
+    }
+    if (response.status === 401 && typeof window !== 'undefined') window.dispatchEvent(new Event(channel.expiredEvent));
+    if (!response.ok) throw await apiError(response);
+    if (!response.body) throw new ApiError('The assistant sent no reply.');
+    await readServerSentEvents(response.body, (event) => options.onEvent(event as AiStreamEvent<T>));
+  }
+
   async function storeTokens(tokens: BackendTokens): Promise<void> {
     resetSessionContext();
     accessToken = tokens.accessToken;
@@ -252,14 +300,14 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
       const active = campaigns.filter((campaign) => campaign.status === 'live');
       return { greetingName: organizationName, stats: [
         { value: String(active.length), label: 'Active Campaigns' },
-        { value: String(campaigns.reduce((sum, campaign) => sum + campaign.submissionCount, 0)), label: 'Pending Submissions' },
+        { value: String(campaigns.reduce((sum, campaign) => sum + campaign.pendingSubmissionCount, 0)), label: 'Pending Submissions' },
         { value: '0', label: 'Total Verified Views' },
         { value: '$0', label: 'Creator Rewards Paid' },
       ], activeCampaigns: active };
     },
     getBrandCampaigns: listBrandCampaigns,
     async getCampaign(campaignId) { return mapCampaign(await request<BackendCampaign>('GET', `/campaigns/${campaignId}`), organizationName); },
-    async getCampaignCategories() { return request<CampaignCategory[]>('GET', '/campaign-categories', undefined, false); },
+    async getCampaignCategories() { return request<CampaignCategory[]>('GET', '/campaign-categories'); },
     async createCampaign(input) {
       const id = await currentOrganizationId();
       const value = await request<BackendCampaign>('POST', `/organizations/${id}/campaigns`, {
@@ -293,8 +341,26 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
       return submissions.map((submission) => withEarnings(mapSubmission(submission), submission.creatorUserId, earnings));
     },
     async deleteAccount() { await request<void>('DELETE', '/me/account', { confirmation: 'DELETE' }); },
-    async recordSubmissionViews({ submissionId, views }) {
-      return toTrackingOutcome(await request<BackendTrackingResult>('POST', `/submissions/${submissionId}/views`, { views }));
+    async getSubmissionHistory(submissionId) {
+      return mapSubmissionHistory(await request<BackendSubmission>('GET', `/submissions/${submissionId}`));
+    },
+    async getSubmissionViews(submissionId) {
+      const data = await request<BackendSubmissionViews>('GET', `/submissions/${submissionId}/views`);
+      return data.posts.map((item): PostViews => ({
+        platform: postPlatform(item.platform),
+        url: item.url ?? undefined,
+        views: item.views,
+        likes: item.likes,
+        comments: item.comments,
+        shares: item.shares,
+        source: item.source === 'MANUAL' ? 'manual' : item.source === 'PLATFORM_API' ? 'platform' : undefined,
+        capturedAt: item.capturedAt ?? undefined,
+      }));
+    },
+    async recordSubmissionViews({ submissionId, platform, views }) {
+      return toTrackingOutcome(
+        await request<BackendTrackingResult>('POST', `/submissions/${submissionId}/views`, { views, platform: platform?.toUpperCase() }),
+      );
     },
     async syncSubmissionViews(submissionId) {
       return toTrackingOutcome(await request<BackendTrackingResult>('POST', `/submissions/${submissionId}/views/sync`));
@@ -307,8 +373,8 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
       ]);
       return submissions.map((submission) => withCreatorEarnings(mapSubmission(submission), earnings));
     },
-    async submitParticipation({ campaignId, postUrl, kind }) { return { ...mapSubmission(await request<BackendSubmission>('POST', `/campaigns/${campaignId}/submissions`, { contentType: kind.toUpperCase(), contentUrl: postUrl })), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false }; },
-    async resubmitSubmission({ submissionId, postUrl, kind }) { return { ...mapSubmission(await request<BackendSubmission>('POST', `/submissions/${submissionId}/revisions`, { contentType: kind.toUpperCase(), contentUrl: postUrl })), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false }; },
+    async submitParticipation({ campaignId, ...content }) { return { ...mapSubmission(await request<BackendSubmission>('POST', `/campaigns/${campaignId}/submissions`, toContentBody(content))), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false }; },
+    async resubmitSubmission({ submissionId, ...content }) { return { ...mapSubmission(await request<BackendSubmission>('POST', `/submissions/${submissionId}/revisions`, toContentBody(content))), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false }; },
     async startVideoUpload({ contentType, size }) { return request<VideoUploadTicket>('POST', '/media/uploads/videos', { contentType, size }); },
     async completeVideoUpload(uploadId) { return request<UploadedVideo>('POST', `/media/uploads/videos/${uploadId}/complete`); },
     async updateCampaign({ campaignId, title, brief, goals, audience, contentRules, hashtags, mentions, endDate }) {
@@ -505,8 +571,20 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     async adminCloseFraudCase({ caseId, action }) {
       return mapFraudCase(await request<BackendFraudCase>('POST', `/admin/fraud-cases/${caseId}/${action}`));
     },
-    async generateBrief(input) { return request('POST', '/ai/campaign-brief', { idea: `${input.product}: ${input.goal} for ${input.platform}` }); },
-    async generateContentIdeas(input) { return request('POST', '/ai/content-ideas', { topic: input.campaignId }); },
+    streamCampaignBrief(input, options) {
+      return streamAssistant('/ai/campaign-brief/stream', {
+        idea: input.idea, goal: input.goal || undefined, title: input.title || undefined,
+        platforms: input.platforms.map((item) => item.toUpperCase()), contentType: input.contentType.toUpperCase(), language: input.language,
+      }, options);
+    },
+    streamContentIdeas(input, options) {
+      return streamAssistant('/ai/content-ideas/stream', { campaignId: input.campaignId, focus: input.focus || undefined, language: input.language }, options);
+    },
+    async getAiSettings() { return request<AiSettings>('GET', '/admin/ai/settings'); },
+    async getAiModels(provider) { return request<AiModel[]>('GET', `/admin/ai/providers/${provider}/models`); },
+    async updateAiSettings(input) { return request<AiSettings>('POST', '/admin/ai/settings', input); },
+    async resetAiSettings() { return request<AiSettings>('POST', '/admin/ai/settings/reset'); },
+    async testAiConnection() { return request<AiConnectionTest>('POST', '/admin/ai/test'); },
   };
 }
 
@@ -542,11 +620,16 @@ function mapSession(account: BackendAccount): Session {
 
 function mapCampaign(value: BackendCampaign, brandName: string): Campaign {
   const currency = value.currencyCode || 'USD';
-  return { id: value.id, title: value.title, brandName, platform: platform(value.platform), platforms: (value.platforms?.length ? value.platforms : [value.platform]).map(platform), contentType: value.contentType === 'CLIPPING' ? 'clipping' : 'ugc', endDate: value.endDate, coverImageUrl: value.coverImageUrl ?? undefined, rewardType: value.rewardType === 'FIXED_PER_ITEM' ? 'per_item' : 'per_view', ratePerThousandViews: { minorUnits: value.rewardAmount, currency }, goals: value.goals ?? undefined, audience: value.audience ?? undefined, startDate: value.startDate, budget: { minorUnits: value.budgetAmount, currency }, budgetSpent: { minorUnits: 0, currency }, perCreatorCap: { minorUnits: value.maxRewardPerCreatorAmount ?? value.budgetAmount, currency }, status: value.status === 'PUBLISHED' ? 'live' : value.status === 'CLOSED' ? 'closed' : 'draft', brief: value.description, requirements: { hashtags: value.hashtags ?? [], mentions: value.mentions ?? [], contentRules: parseGuidelines(value.guidelines), disclosureRequired: true }, submissionCount: 0, referenceMaterials: (value.referenceMaterials ?? []).map((material, index) => ({ id: `${value.id}-${index}`, name: material.name, url: material.url })) };
+  return { id: value.id, title: value.title, brandName, platform: platform(value.platform), platforms: (value.platforms?.length ? value.platforms : [value.platform]).map(platform), contentType: value.contentType === 'CLIPPING' ? 'clipping' : 'ugc', endDate: value.endDate, coverImageUrl: value.coverImageUrl ?? undefined, rewardType: value.rewardType === 'FIXED_PER_ITEM' ? 'per_item' : 'per_view', ratePerThousandViews: { minorUnits: value.rewardAmount, currency }, goals: value.goals ?? undefined, audience: value.audience ?? undefined, startDate: value.startDate, budget: { minorUnits: value.budgetAmount, currency }, budgetSpent: { minorUnits: 0, currency }, perCreatorCap: { minorUnits: value.maxRewardPerCreatorAmount ?? value.budgetAmount, currency }, status: value.status === 'PUBLISHED' ? 'live' : value.status === 'CLOSED' ? 'closed' : 'draft', brief: value.description, requirements: { hashtags: value.hashtags ?? [], mentions: value.mentions ?? [], contentRules: parseGuidelines(value.guidelines), disclosureRequired: true }, submissionCount: value.submissionCount ?? 0, pendingSubmissionCount: value.pendingSubmissionCount ?? 0, referenceMaterials: (value.referenceMaterials ?? []).map((material, index) => ({ id: `${value.id}-${index}`, name: material.name, url: material.url })) };
 }
 
 interface BackendCampaignEarnings { currencyCode: string; creators: { creatorUserId: string; views: number; accruedMinor: number; paused: boolean; risk: string }[] }
-interface BackendTrackingResult { results: { outcome: { status: 'RECORDED' | 'UNAVAILABLE'; views?: number; message?: string } }[] }
+interface BackendTrackingResult {
+  results: {
+    platform?: string | null;
+    outcome: { status: 'RECORDED' | 'UNAVAILABLE'; views?: number; reason?: string; message?: string };
+  }[];
+}
 
 function withCreatorEarnings(submission: Submission, earnings: BackendCreatorCampaignEarnings[]): CreatorSubmission {
   const entry = earnings.find((item) => item.campaignId === submission.campaignId);
@@ -571,16 +654,111 @@ function withEarnings(submission: Submission, creatorUserId: string, earnings: B
   return { ...submission, views: entry.views, earning: { minorUnits: entry.accruedMinor, currency: earnings.currencyCode }, earningsPaused: entry.paused, risk: entry.risk.toLowerCase() as Submission['risk'] };
 }
 
+/**
+ * One outcome for a whole sync: recorded when any post was read. Platforms Zeyoo can't read
+ * automatically share one sentence; other reasons (the creator must connect their account,
+ * the post wasn't found) are shown as given, named by platform.
+ */
 function toTrackingOutcome(result: BackendTrackingResult): ViewTrackingOutcome {
-  const outcome = result.results[0]?.outcome;
-  if (outcome?.status === 'RECORDED') return { status: 'recorded', views: outcome.views };
-  return { status: 'unavailable', message: outcome?.message ?? 'Views could not be read.' };
+  const recorded = result.results.filter((item) => item.outcome.status === 'RECORDED');
+  const failed = result.results.filter((item) => item.outcome.status !== 'RECORDED');
+  const cannotRead = (item: BackendTrackingResult['results'][number]) =>
+    Boolean(item.platform) &&
+    (item.outcome.reason === 'UNSUPPORTED_PLATFORM' || item.outcome.reason === 'NOT_CONFIGURED');
+  const unsupported = failed.filter(cannotRead).map((item) => postPlatformLabel(item.platform as string));
+  const reasons = [
+    ...(unsupported.length > 0 ? [`${unsupported.join(' and ')} views can't be read automatically yet.`] : []),
+    ...failed
+      .filter((item) => !cannotRead(item))
+      .map((item) => {
+        const message = item.outcome.message ?? 'Views could not be read.';
+        return item.platform ? `${postPlatformLabel(item.platform)}: ${message}` : message;
+      }),
+  ];
+  if (recorded.length === 0) {
+    return { status: 'unavailable', message: reasons.join(' ') || 'Views could not be read.' };
+  }
+  return {
+    status: 'recorded',
+    views: recorded.reduce((total, item) => total + (item.outcome.views ?? 0), 0),
+    message: reasons.length > 0 ? reasons.join(' ') : undefined,
+  };
+}
+
+function toContentBody(content: SubmissionContent) {
+  return content.kind === 'link'
+    ? {
+        contentType: 'LINK',
+        posts: content.posts.map((item) => ({ platform: item.platform.toUpperCase(), url: item.url.trim() })),
+      }
+    : { contentType: 'UPLOAD', contentUrl: content.videoUrl };
+}
+
+function postPlatform(value: string): PostPlatform {
+  return value === 'X' ? 'x' : platform(value);
+}
+
+const POST_PLATFORM_LABELS: Record<PostPlatform, string> = {
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  snapchat: 'Snapchat',
+  youtube: 'YouTube',
+  x: 'X',
+};
+
+function postPlatformLabel(value: string): string {
+  return POST_PLATFORM_LABELS[postPlatform(value)];
+}
+
+/** A version's posts; one from an older server is read from its single link. */
+function revisionPosts(revision: BackendRevision | undefined): SubmissionPost[] {
+  if (!revision || revision.contentType === 'UPLOAD') return [];
+  if (revision.posts) {
+    return revision.posts.map((item) => ({ platform: postPlatform(item.platform), url: item.url }));
+  }
+  return [{ platform: platformOfUrl(revision.contentUrl), url: revision.contentUrl }];
+}
+
+function platformOfUrl(url: string): PostPlatform {
+  const host = url.replace(/^https?:\/\//, '').split(/[/?#]/)[0]?.toLowerCase() ?? '';
+  if (host.endsWith('instagram.com')) return 'instagram';
+  if (host.endsWith('youtube.com') || host === 'youtu.be') return 'youtube';
+  if (host.endsWith('snapchat.com')) return 'snapchat';
+  if (host.endsWith('x.com') || host.endsWith('twitter.com')) return 'x';
+  return 'tiktok';
+}
+
+const REVIEW_DECISION_FROM_BACKEND: Record<string, ReviewDecision> = {
+  APPROVED: 'approve',
+  CHANGES_REQUESTED: 'request_changes',
+  REJECTED: 'reject',
+};
+
+function mapSubmissionHistory(value: BackendSubmission): SubmissionHistory {
+  return {
+    id: value.id,
+    createdAt: value.createdAt ?? '',
+    revisions: (value.revisions ?? []).map((revision, index) => ({
+      id: revision.id ?? String(index),
+      createdAt: revision.createdAt ?? '',
+      kind: revision.contentType === 'UPLOAD' ? 'upload' : 'link',
+      url: revision.contentUrl,
+      posts: revisionPosts(revision),
+      note: revision.note ?? undefined,
+    })),
+    reviews: (value.reviews ?? []).map((review) => ({
+      revisionId: review.revisionId ?? '',
+      decision: REVIEW_DECISION_FROM_BACKEND[review.decision] ?? 'approve',
+      note: review.note ?? undefined,
+      createdAt: review.createdAt,
+    })),
+  };
 }
 
 function mapSubmission(value: BackendSubmission): Submission {
   const latest = value.revisions?.at(-1);
   const creator = value.creator;
-  return { id: value.id, campaignId: value.campaignId, creatorId: value.creatorUserId, creatorHandle: creator ? `@${creator.username}` : 'Creator', creatorName: creator?.displayName, creatorAvatarUrl: creator?.avatarUrl ?? undefined, accountVerified: value.accountVerified, postUrl: latest?.contentUrl ?? '', kind: latest?.contentType === 'UPLOAD' ? 'upload' : 'link', views: 0, earning: ZERO_USD, status: value.status === 'APPROVED' ? 'approved' : value.status === 'REJECTED' ? 'rejected' : value.status === 'NEEDS_CHANGES' ? 'needs_changes' : 'pending', ...reviewNotes(value) };
+  return { id: value.id, campaignId: value.campaignId, creatorId: value.creatorUserId, creatorHandle: creator ? `@${creator.username}` : 'Creator', creatorName: creator?.displayName, creatorAvatarUrl: creator?.avatarUrl ?? undefined, accountVerified: value.accountVerified, verifiedPlatforms: value.verifiedPlatforms?.map(postPlatform), postUrl: latest?.contentUrl ?? '', kind: latest?.contentType === 'UPLOAD' ? 'upload' : 'link', posts: revisionPosts(latest), note: latest?.note ?? undefined, views: 0, earning: ZERO_USD, status: value.status === 'APPROVED' ? 'approved' : value.status === 'REJECTED' ? 'rejected' : value.status === 'NEEDS_CHANGES' ? 'needs_changes' : 'pending', ...reviewNotes(value) };
 }
 
 /** The brand's note on the latest review, shown to the creator as the reason or the change request. */

@@ -7,7 +7,9 @@ import { useRouter } from 'next/navigation';
 import { Badge, Button, Card, Field, SegmentedToggle, Textarea } from '@/design-system';
 import { useApi } from '@/shared/api';
 import { uploadVideo } from '@/shared/media/videoUpload';
-import type { Campaign, CreatorSubmission, MyApplication, SubmissionKind } from '@/shared/api';
+import type { Campaign, CreatorSubmission, MyApplication, PostPlatform, SubmissionKind } from '@/shared/api';
+import { platformLabel } from '@/shared/format/platform';
+import { POST_LINK_PLACEHOLDERS, postLinkProblem } from '@/shared/format/postLinks';
 
 import {
   useApplyToCampaign,
@@ -20,7 +22,7 @@ import {
 } from '../submissions/hooks';
 
 const KIND_OPTIONS: { value: SubmissionKind; label: string }[] = [
-  { value: 'link', label: 'Paste link' },
+  { value: 'link', label: 'Paste links' },
   { value: 'upload', label: 'Upload video' },
 ];
 
@@ -47,7 +49,7 @@ export function ParticipationSection({ campaign }: { campaign: Campaign }) {
   if (applications.isLoading || submissions.isLoading) return null;
 
   const submission = submissions.data?.find((item) => item.campaignId === campaign.id);
-  if (submission) return <SubmittedCard submission={submission} />;
+  if (submission) return <SubmittedCard campaign={campaign} submission={submission} />;
 
   const application = applications.data?.find((item) => item.campaignId === campaign.id);
   if (!application) return <ApplyCard campaign={campaign} />;
@@ -56,7 +58,7 @@ export function ParticipationSection({ campaign }: { campaign: Campaign }) {
       <Card className="mt-4">
         <h2 className="font-display text-lg font-semibold text-text">Submit your content</h2>
         <p className="mt-1 text-sm text-text-muted">Your application was approved. Post your content, then submit it here.</p>
-        <SubmitForm campaignId={campaign.id} />
+        <SubmitForm campaign={campaign} />
       </Card>
     );
   }
@@ -146,7 +148,7 @@ function ApplicationStatusCard({
   );
 }
 
-function SubmittedCard({ submission }: { submission: CreatorSubmission }) {
+function SubmittedCard({ campaign, submission }: { campaign: Campaign; submission: CreatorSubmission }) {
   const status = SUBMISSION_STATUS[submission.status];
   return (
     <Card className="mt-4 flex flex-col gap-3">
@@ -154,13 +156,26 @@ function SubmittedCard({ submission }: { submission: CreatorSubmission }) {
         <h2 className="font-display text-lg font-semibold text-text">Your submission</h2>
         <Badge tone={status.tone}>{status.label}</Badge>
       </div>
-      <p className="truncate text-sm text-text-muted">{submission.postUrl}</p>
+      {submission.posts.length > 0 ? (
+        <ul className="flex flex-col gap-1">
+          {submission.posts.map((post) => (
+            <li key={post.platform} className="truncate text-sm text-text-muted">
+              {platformLabel(post.platform)} ·{' '}
+              <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-green-text hover:underline">
+                {post.url}
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-text-muted">Uploaded video</p>
+      )}
       {submission.status === 'needs_changes' ? (
         <>
           <p className="text-sm text-warning">
             The brand asked for changes{submission.changeRequest ? `: ${submission.changeRequest}` : '.'}
           </p>
-          <SubmitForm campaignId={submission.campaignId} revisionOf={submission.id} />
+          <SubmitForm campaign={campaign} revisionOf={submission} />
         </>
       ) : (
         <Link href="/creator/submissions" className="text-sm text-green-text">
@@ -171,26 +186,49 @@ function SubmittedCard({ submission }: { submission: CreatorSubmission }) {
   );
 }
 
-/** A new submission, or — with `revisionOf` — the revised post after changes were requested. */
-function SubmitForm({ campaignId, revisionOf }: { campaignId: string; revisionOf?: string }) {
+/** The platforms a creator can post on for this campaign, in the order the brand chose. */
+function campaignPlatforms(campaign: Campaign): PostPlatform[] {
+  return campaign.platforms.length > 0 ? campaign.platforms : [campaign.platform];
+}
+
+/**
+ * A new submission, or — with `revisionOf` — the revised content after changes were
+ * requested. Links go one per campaign platform; at least one is needed.
+ */
+function SubmitForm({ campaign, revisionOf }: { campaign: Campaign; revisionOf?: CreatorSubmission }) {
   const router = useRouter();
   const submit = useSubmitParticipation();
   const resubmit = useResubmit();
-  const [kind, setKind] = useState<SubmissionKind>('link');
-  const [postUrl, setPostUrl] = useState('');
+  const platforms = campaignPlatforms(campaign);
+  const [kind, setKind] = useState<SubmissionKind>(revisionOf?.kind ?? 'link');
+  // A revision starts from the links the creator sent last time.
+  const [links, setLinks] = useState<Partial<Record<PostPlatform, string>>>(() =>
+    Object.fromEntries((revisionOf?.posts ?? []).map((post) => [post.platform, post.url])),
+  );
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const pending = submit.isPending || resubmit.isPending;
   const error = submit.error ?? resubmit.error;
-  const value = kind === 'link' ? postUrl.trim() : uploadedUrl;
-  const canSubmit = (kind === 'link' ? isPostUrl(postUrl) : Boolean(uploadedUrl)) && !pending;
+
+  const filled = platforms
+    .map((platform) => ({ platform, url: (links[platform] ?? '').trim() }))
+    .filter((post) => post.url.length > 0);
+  const linksValid = filled.every((post) => postLinkProblem(post.url, post.platform) === null);
+  const ready = kind === 'link' ? filled.length > 0 && linksValid : Boolean(uploadedUrl);
+  const canSubmit = ready && !pending;
 
   function onSubmit() {
-    if (!value) return;
+    const content =
+      kind === 'link'
+        ? { kind: 'link' as const, posts: filled }
+        : uploadedUrl
+          ? { kind: 'upload' as const, videoUrl: uploadedUrl }
+          : null;
+    if (!content) return;
     const done = { onSuccess: () => router.replace('/creator/submissions') };
     if (revisionOf) {
-      resubmit.mutate({ submissionId: revisionOf, postUrl: value, kind }, done);
+      resubmit.mutate({ submissionId: revisionOf.id, ...content }, done);
     } else {
-      submit.mutate({ campaignId, postUrl: value, kind }, done);
+      submit.mutate({ campaignId: campaign.id, ...content }, done);
     }
   }
 
@@ -200,13 +238,27 @@ function SubmitForm({ campaignId, revisionOf }: { campaignId: string; revisionOf
         <SegmentedToggle options={KIND_OPTIONS} value={kind} onChange={setKind} ariaLabel="Submission type" />
       </div>
       {kind === 'link' ? (
-        <Field
-          placeholder="https://instagram.com/p/…"
-          value={postUrl}
-          onChange={(event) => setPostUrl(event.target.value)}
-          aria-label={revisionOf ? 'Revised post URL' : 'Post URL'}
-          error={postUrl.trim() && !isPostUrl(postUrl) ? 'Paste the full link to your post, starting with https://' : undefined}
-        />
+        <>
+          {platforms.length > 1 ? (
+            <p className="text-xs text-text-muted">Add a link for each platform you posted on. You need at least one.</p>
+          ) : null}
+          {platforms.map((platform) => {
+            const value = links[platform] ?? '';
+            return (
+              <Field
+                key={platform}
+                label={`${platformLabel(platform)} post link`}
+                placeholder={POST_LINK_PLACEHOLDERS[platform]}
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                value={value}
+                onChange={(event) => setLinks((current) => ({ ...current, [platform]: event.target.value }))}
+                error={value.trim() ? (postLinkProblem(value, platform) ?? undefined) : undefined}
+              />
+            );
+          })}
+        </>
       ) : (
         <VideoUploadField onUploaded={setUploadedUrl} />
       )}
@@ -218,16 +270,6 @@ function SubmitForm({ campaignId, revisionOf }: { campaignId: string; revisionOf
       </div>
     </div>
   );
-}
-
-/** A real web link to the post — not just any text with a dot in it. */
-function isPostUrl(value: string): boolean {
-  try {
-    const url = new URL(value.trim());
-    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname.includes('.');
-  } catch {
-    return false;
-  }
 }
 
 type UploadState =

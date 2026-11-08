@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BarChart3, LifeBuoy, Pencil, UserPlus, XCircle } from 'lucide-react';
+import { BarChart3, ChevronRight, LifeBuoy, Pencil, UserPlus, XCircle } from 'lucide-react';
 
 import {
   ActionsMenu,
@@ -11,24 +12,22 @@ import {
   Badge,
   Button,
   Card,
-  ChoiceChips,
   EmptyState,
-  Field,
   Modal,
   ProgressBar,
   TabBar,
   Textarea,
   useConfirm,
-  type Choice,
   type MenuAction,
 } from '@/design-system';
-import type { Campaign, FraudCase, RiskLevel, Submission } from '@/shared/api';
+import type { Campaign, FraudCase, Submission } from '@/shared/api';
 import { formatCampaignReward, formatCount, formatMoney } from '@/shared/money/money';
-import { platformsLabel } from '@/shared/format/platform';
+import { platformLabel, platformsLabel } from '@/shared/format/platform';
 import { BackButton } from '@/shared/nav/BackButton';
 
 import { ApplicationsReview, visibleApplications } from './ApplicationsReview';
 import { CampaignCover } from './CampaignCover';
+import { SUBMISSION_STATUS } from './SubmissionDetailScreen';
 import {
   CampaignAboutSection,
   CampaignBriefSection,
@@ -37,19 +36,8 @@ import {
   CampaignScheduleSection,
 } from './CampaignInfoSections';
 import { useOpenDispute } from '@/shared/disputes/hooks';
-import {
-  useCampaign,
-  useCampaignFraudCases,
-  useCloseFraudCase,
-  useFlagCreator,
-  useSetCampaignStatus,
-} from './hooks';
-import {
-  useCampaignApplications,
-  useCampaignSubmissions,
-  useReviewSubmission,
-  useTrackViews,
-} from '../submissions/hooks';
+import { useCampaign, useCampaignFraudCases, useCloseFraudCase, useSetCampaignStatus } from './hooks';
+import { useCampaignApplications, useCampaignSubmissions } from '../submissions/hooks';
 
 export function CampaignDetailBrandScreen({ campaignId }: { campaignId: string }) {
   const campaignQuery = useCampaign(campaignId);
@@ -180,7 +168,7 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
             <Card className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium uppercase tracking-wide text-text-muted">Budget spent</p>
-                <p className="text-xs text-text-tertiary">{campaign.submissionCount} submissions</p>
+                <p className="text-xs text-text-tertiary">{campaign.submissionCount} {campaign.submissionCount === 1 ? 'submission' : 'submissions'}</p>
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="font-numeric text-2xl leading-none text-green-text">{formatMoney(spent)}</span>
@@ -259,12 +247,6 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
   );
 }
 
-const LEVELS: Choice<RiskLevel>[] = [
-  { value: 'low', label: 'Low concern' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-];
-
 const LEVEL_TONE = { low: 'neutral', medium: 'warning', high: 'danger' } as const;
 
 const CASE_STATUS: Record<FraudCase['status'], { label: string; hint: string }> = {
@@ -316,257 +298,43 @@ function EarningsReviews({
   );
 }
 
-const STATUS = {
-  pending: { tone: 'warning', label: 'Pending' },
-  needs_changes: { tone: 'warning', label: 'Changes requested' },
-  approved: { tone: 'success', label: 'Approved' },
-  rejected: { tone: 'danger', label: 'Rejected' },
-} as const;
-
+/** One submission in the list: who, where they posted, views and earnings. Opens its page. */
 function SubmissionRow({ submission, campaignId }: { submission: Submission; campaignId: string }) {
-  const review = useReviewSubmission(campaignId);
-  const confirm = useConfirm();
-  const fraudCases = useCampaignFraudCases(campaignId);
-  const flag = useFlagCreator(campaignId);
-  const closeCase = useCloseFraudCase(campaignId);
-  const [flagging, setFlagging] = useState(false);
-  const [flagLevel, setFlagLevel] = useState<RiskLevel>('medium');
-  const [flagNote, setFlagNote] = useState('');
-  const openCase = (fraudCases.data ?? []).find(
-    (item) => item.creatorId === submission.creatorId && item.status === 'open',
-  );
-  const track = useTrackViews(campaignId);
-  const [rejecting, setRejecting] = useState<'reject' | 'request_changes' | null>(null);
-  const [reason, setReason] = useState('');
-  const [enteringViews, setEnteringViews] = useState(false);
-  const [viewsDraft, setViewsDraft] = useState('');
-  const [trackingNotice, setTrackingNotice] = useState<string | null>(null);
-
-  const viewsToRecord = Number(viewsDraft.replace(/[^0-9]/g, ''));
-  const viewsValid = viewsDraft.trim().length > 0 && Number.isSafeInteger(viewsToRecord);
-
-  const trackViews = async (views?: number) => {
-    setTrackingNotice(null);
-    try {
-      const outcome = await track.mutateAsync({ submissionId: submission.id, views });
-      setTrackingNotice(
-        outcome.status === 'recorded'
-          ? 'Views updated.'
-          : `${outcome.message} Use "Enter views" instead.`,
-      );
-    } catch (error) {
-      setTrackingNotice(error instanceof Error ? error.message : 'Could not update views.');
-    }
-  };
-
-  const approve = async () => {
-    const confirmed = await confirm({
-      title: 'Approve this submission?',
-      message: `${submission.creatorHandle} will be paid for their verified views on this post.`,
-      confirmLabel: 'Approve',
-    });
-    if (confirmed) review.mutate({ submissionId: submission.id, decision: 'approve' });
-  };
+  const status = SUBMISSION_STATUS[submission.status];
+  const name = submission.creatorName ?? submission.creatorHandle;
+  const where =
+    submission.kind === 'upload'
+      ? 'Uploaded video'
+      : submission.posts.map((post) => platformLabel(post.platform)).join(' · ');
+  const attention =
+    submission.status === 'approved' && submission.earningsPaused
+      ? 'Earnings paused'
+      : submission.status === 'approved' && (submission.risk === 'high' || submission.risk === 'medium')
+        ? 'Unusual engagement'
+        : null;
 
   return (
-    <Card className="p-4">
-      <div className="flex items-center gap-3">
-        <Avatar name={submission.creatorName ?? submission.creatorHandle} src={submission.creatorAvatarUrl} />
+    <Link
+      href={`/brand/campaigns/${campaignId}/submissions/${submission.id}`}
+      aria-label={`Open ${name}'s submission`}
+      className="block rounded-2xl transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+    >
+      <Card className="flex items-center gap-3 p-4">
+        <Avatar name={name} src={submission.creatorAvatarUrl} />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-text">{submission.creatorName ?? submission.creatorHandle}</p>
+          <p className="truncate font-medium text-text">{name}</p>
           <p className="truncate text-xs text-text-muted">
-            {submission.creatorHandle}
-            {submission.accountVerified ? ' · Verified account' : ' · Unverified account'}
+            {submission.creatorHandle} · {where}
           </p>
-          <a
-            href={submission.postUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block truncate text-xs text-green-text hover:underline"
-          >
-            {submission.kind === 'upload' ? '▶ Watch uploaded video' : submission.postUrl}
-          </a>
-        </div>
-        <Badge tone={STATUS[submission.status].tone}>{STATUS[submission.status].label}</Badge>
-      </div>
-
-      <div className="mt-3 flex items-center gap-4 text-sm text-text-muted">
-        <span className="font-numeric text-text">{formatCount(submission.views)} views</span>
-        <span className="font-numeric text-text">{formatMoney(submission.earning)}</span>
-      </div>
-
-      {submission.status === 'pending' ? (
-        <div className="mt-3 grid grid-cols-3 gap-2 sm:flex">
-          <Button size="sm" className="sm:w-auto" loading={review.isPending} onClick={approve}>
-            Approve
-          </Button>
-          <Button size="sm" variant="secondary" className="sm:w-auto" onClick={() => setRejecting('request_changes')}>
-            <span className="sm:hidden">Changes</span>
-            <span className="hidden sm:inline">Request changes</span>
-          </Button>
-          <Button size="sm" variant="secondary" className="sm:w-auto" onClick={() => setRejecting('reject')}>
-            Reject
-          </Button>
-        </div>
-      ) : null}
-      {submission.status === 'needs_changes' && submission.changeRequest ? (
-        <p className="mt-2 text-xs text-text-muted">Waiting for a revision: {submission.changeRequest}</p>
-      ) : null}
-
-      {submission.status === 'approved' ? (
-        <div className="mt-3 flex gap-2">
-          <Button size="sm" fullWidth={false} loading={track.isPending} onClick={() => trackViews()}>
-            Sync views
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            fullWidth={false}
-            onClick={() => {
-              setViewsDraft(submission.views > 0 ? String(submission.views) : '');
-              setEnteringViews(true);
-            }}
-          >
-            Enter views
-          </Button>
-        </div>
-      ) : null}
-      {trackingNotice ? <p className="mt-2 text-xs text-text-muted">{trackingNotice}</p> : null}
-
-      {submission.status === 'approved' && submission.earningsPaused ? (
-        <div className="mt-3 flex flex-col items-start gap-2">
-          <p className="text-xs text-warning">
-            Earnings paused. This creator earns nothing more here until you clear the flag.
+          <p className="mt-1 text-xs text-text-tertiary">
+            <span className="font-numeric text-sm text-text">{formatCount(submission.views)}</span> views ·{' '}
+            <span className="font-numeric text-sm text-text">{formatMoney(submission.earning)}</span>
           </p>
-          {openCase ? (
-            <Button
-              size="sm"
-              variant="secondary"
-              fullWidth={false}
-              loading={closeCase.isPending}
-              onClick={() => closeCase.mutate({ caseId: openCase.id, action: 'clear' })}
-            >
-              Clear flag and resume
-            </Button>
-          ) : null}
+          {attention ? <p className="mt-1 text-xs text-warning">{attention}</p> : null}
         </div>
-      ) : null}
-
-      {submission.status === 'approved' && !submission.earningsPaused ? (
-        <div className="mt-3 flex flex-col items-start gap-2">
-          {submission.risk === 'high' || submission.risk === 'medium' ? (
-            <p className="text-xs text-warning">
-              {submission.risk === 'high'
-                ? 'Engagement looks unusual: more likes, comments and shares than views.'
-                : 'Engagement looks unusual: interactions but no recorded views.'}
-            </p>
-          ) : null}
-          <Button
-            size="sm"
-            variant="ghost"
-            fullWidth={false}
-            onClick={() => {
-              setFlagLevel(submission.risk === 'high' ? 'high' : 'medium');
-              setFlagNote('');
-              setFlagging(true);
-            }}
-          >
-            Flag creator
-          </Button>
-        </div>
-      ) : null}
-
-      <Modal open={flagging} onClose={() => setFlagging(false)} title="Flag for review">
-        <p className="text-sm text-text-muted">
-          {submission.creatorName ?? submission.creatorHandle} will stop earning on this campaign right
-          away and be told why. Earnings already paid stay paid. You can clear the flag at any time and
-          earning resumes.
-        </p>
-        <ChoiceChips
-          accessibilityLabel="How serious is the concern"
-          choices={LEVELS}
-          value={flagLevel}
-          onChange={setFlagLevel}
-        />
-        <Textarea
-          placeholder="What looks wrong? (shown to the creator)"
-          value={flagNote}
-          onChange={(event) => setFlagNote(event.target.value)}
-        />
-        {flag.error ? (
-          <p className="text-xs text-danger">
-            {flag.error instanceof Error ? flag.error.message : 'Could not flag this creator.'}
-          </p>
-        ) : null}
-        <Button
-          variant="danger"
-          disabled={flagNote.trim().length < 5}
-          loading={flag.isPending}
-          onClick={() =>
-            flag.mutate(
-              { creatorId: submission.creatorId, level: flagLevel, note: flagNote.trim() },
-              { onSuccess: () => setFlagging(false) },
-            )
-          }
-        >
-          Pause earnings and flag
-        </Button>
-      </Modal>
-
-      {submission.rejectionReason ? (
-        <p className="mt-2 text-xs text-danger">{submission.rejectionReason}</p>
-      ) : null}
-
-      <Modal open={enteringViews} onClose={() => setEnteringViews(false)} title="Enter views">
-        <p className="text-sm text-text-muted">
-          The total views {submission.creatorHandle}&apos;s post has right now. Earnings are credited for any increase.
-        </p>
-        <Field
-          label="Total views"
-          inputMode="numeric"
-          placeholder="e.g. 12500"
-          value={viewsDraft}
-          onChange={(event) => setViewsDraft(event.target.value)}
-        />
-        <Button
-          disabled={!viewsValid}
-          onClick={() => {
-            void trackViews(viewsToRecord);
-            setEnteringViews(false);
-          }}
-        >
-          Save views
-        </Button>
-      </Modal>
-
-      <Modal
-        open={rejecting !== null}
-        onClose={() => setRejecting(null)}
-        title={rejecting === 'request_changes' ? 'Request changes' : 'Reject submission'}
-      >
-        <p className="text-sm text-text-muted">
-          {rejecting === 'request_changes'
-            ? `Tell ${submission.creatorHandle} what to change. They can submit a revised post.`
-            : `Tell ${submission.creatorHandle} why this doesn\u2019t fit the brief.`}
-        </p>
-        <Textarea
-          placeholder={rejecting === 'request_changes' ? 'e.g. Add the #ad label and tag @brand' : 'Reason for rejection'}
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-        />
-        <Button
-          variant={rejecting === 'request_changes' ? 'primary' : 'danger'}
-          disabled={reason.trim().length < 3}
-          onClick={() => {
-            if (!rejecting) return;
-            review.mutate({ submissionId: submission.id, decision: rejecting, reason: reason.trim() });
-            setRejecting(null);
-            setReason('');
-          }}
-        >
-          {rejecting === 'request_changes' ? 'Send change request' : 'Reject submission'}
-        </Button>
-      </Modal>
-    </Card>
+        <Badge tone={status.tone}>{status.label}</Badge>
+        <ChevronRight aria-hidden className="size-4 shrink-0 text-text-tertiary rtl:rotate-180" />
+      </Card>
+    </Link>
   );
 }

@@ -9,6 +9,9 @@ export type Role = 'brand' | 'creator';
 
 export type SocialPlatform = 'instagram' | 'tiktok' | 'snapchat' | 'youtube';
 
+/** A platform a submitted post can be on (X campaigns are possible on the backend). */
+export type PostPlatform = SocialPlatform | 'x';
+
 export type CampaignStatus = 'draft' | 'live' | 'closed';
 
 export type SubmissionStatus = 'pending' | 'needs_changes' | 'approved' | 'rejected';
@@ -130,7 +133,10 @@ export interface Campaign {
   status: CampaignStatus;
   brief: string;
   requirements: CampaignRequirements;
+  /** Every submission to the campaign; filled in only for the brand's own team. */
   submissionCount: number;
+  /** Submissions still waiting for the brand's decision. */
+  pendingSubmissionCount: number;
   referenceMaterials: ReferenceMaterial[];
 }
 
@@ -194,14 +200,21 @@ export interface Submission {
   /** The creator's display name, when the backend could resolve it. */
   creatorName?: string;
   creatorAvatarUrl?: string;
-  /** The post is on a platform account the creator verified by signing in. */
+  /** Every post is on a platform account the creator verified by signing in. */
   accountVerified?: boolean;
+  /** The posts' platforms the creator has a verified account on. */
+  verifiedPlatforms?: PostPlatform[];
   /** A fraud review is stopping this creator's new earnings on the campaign. */
   earningsPaused?: boolean;
   /** Engagement risk worked out from the latest readings. */
   risk?: RiskLevel;
+  /** The uploaded video, or the first post's link. */
   postUrl: string;
   kind: SubmissionKind;
+  /** The published posts in the latest version, one per platform; empty for an upload. */
+  posts: SubmissionPost[];
+  /** The creator's note with the latest version. */
+  note?: string;
   views: number;
   earning: Money;
   status: SubmissionStatus;
@@ -224,6 +237,50 @@ export interface CreatorSubmission extends Submission {
   capReached: boolean;
 }
 
+/** One published post in a submission. */
+export interface SubmissionPost {
+  platform: PostPlatform;
+  url: string;
+}
+
+/** A submission with every version the creator sent and every decision on it. */
+export interface SubmissionHistory {
+  id: string;
+  createdAt: string;
+  revisions: SubmissionRevision[];
+  reviews: SubmissionReviewEntry[];
+}
+
+export interface SubmissionRevision {
+  id: string;
+  createdAt: string;
+  kind: SubmissionKind;
+  /** The uploaded video, or the first post's link. */
+  url: string;
+  posts: SubmissionPost[];
+  note?: string;
+}
+
+export interface SubmissionReviewEntry {
+  revisionId: string;
+  decision: ReviewDecision;
+  note?: string;
+  createdAt: string;
+}
+
+/** A post's latest view reading; `url` is missing for views entered for an uploaded video. */
+export interface PostViews {
+  platform: PostPlatform;
+  url?: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  source?: 'manual' | 'platform';
+  /** When the latest reading was taken; missing until one is recorded. */
+  capturedAt?: string;
+}
+
 export type ReviewDecision = 'approve' | 'reject' | 'request_changes';
 
 export interface ReviewSubmissionInput {
@@ -237,6 +294,8 @@ export type ConnectablePlatform = 'instagram' | 'tiktok' | 'youtube' | 'snapchat
 
 export interface RecordViewsInput {
   submissionId: string;
+  /** Which post the count is for; may be left out when there is one post. */
+  platform?: PostPlatform;
   views: number;
 }
 
@@ -248,17 +307,14 @@ export interface ViewTrackingOutcome {
   message?: string;
 }
 
-export interface ResubmitInput {
-  submissionId: string;
-  postUrl: string;
-  kind: SubmissionKind;
-}
+/** A link submission sends `posts`; an upload sends the video's `videoUrl`. */
+export type SubmissionContent =
+  | { kind: 'link'; posts: SubmissionPost[] }
+  | { kind: 'upload'; videoUrl: string };
 
-export interface SubmitParticipationInput {
-  campaignId: string;
-  postUrl: string;
-  kind: SubmissionKind;
-}
+export type ResubmitInput = SubmissionContent & { submissionId: string };
+
+export type SubmitParticipationInput = SubmissionContent & { campaignId: string };
 
 // -------------------------------------------------------------------------------------
 // Dashboard
@@ -637,23 +693,96 @@ export interface CampaignReport {
 // AI assistants
 // -------------------------------------------------------------------------------------
 
+export type AiLanguage = 'en' | 'ar';
+
 export interface AiBriefRequest {
-  product: string;
-  goal: string;
-  platform: SocialPlatform;
+  /** What the brand is promoting, in its own words. */
+  idea: string;
+  goal?: string;
+  title?: string;
+  platforms: SocialPlatform[];
+  contentType: CampaignContentType;
+  language: AiLanguage;
 }
 
-export interface AiBriefResult {
+export interface AiBriefDraft {
   brief: string;
-  suggestedHashtags: string[];
+  goals: string;
+  audience: string;
+  contentRules: string[];
+  hashtags: string[];
 }
 
 export interface AiIdeasRequest {
   campaignId: string;
+  /** Optional steer from the creator: their niche, a style, a constraint. */
+  focus?: string;
+  language: AiLanguage;
+}
+
+export interface AiContentIdea {
+  title: string;
+  hook: string;
+  talkingPoints: string[];
+  format: string;
 }
 
 export interface AiIdeasResult {
-  ideas: string[];
+  ideas: AiContentIdea[];
+}
+
+export interface AiResultMeta {
+  provider: string;
+  model: string;
+  promptVersion: string;
+  durationMs: number;
+}
+
+/** What the assistant is doing right now, for progress indicators. */
+export type AiStage = 'thinking' | 'writing' | 'checking' | 'fixing';
+
+/** A result still being written: any field may be missing or cut short. */
+export type AiPartial<T> = T extends (infer U)[]
+  ? AiPartial<U>[]
+  : T extends object
+    ? { [K in keyof T]?: AiPartial<T[K]> }
+    : T;
+
+/** Server-sent events from an assistant stream; the last is `result` or `error`. */
+export type AiStreamEvent<T> =
+  | { type: 'status'; stage: AiStage }
+  | { type: 'partial'; data: AiPartial<T> }
+  | { type: 'tool_call'; id: string; name: string; label: string }
+  | { type: 'tool_result'; id: string; name: string; ok: boolean }
+  | { type: 'result'; data: T; meta: AiResultMeta }
+  | { type: 'error'; code: string; message: string; retryable: boolean };
+
+export interface AiStreamOptions<T> {
+  signal: AbortSignal;
+  onEvent: (event: AiStreamEvent<T>) => void;
+}
+
+export type AiProviderId = 'ollama' | 'anthropic';
+
+export interface AiSettings {
+  active: { provider: AiProviderId; model: string };
+  /** Saved by staff, or the server's environment defaults. */
+  source: 'admin' | 'environment';
+  providers: { id: AiProviderId; configured: boolean; defaultModel: string }[];
+}
+
+export interface AiModel {
+  name: string;
+  details?: string;
+}
+
+export interface AiConnectionTest {
+  ok: boolean;
+  provider: string;
+  model: string;
+  latencyMs: number;
+  reply?: string;
+  error?: { code: string; message: string };
 }
 
 // -------------------------------------------------------------------------------------
