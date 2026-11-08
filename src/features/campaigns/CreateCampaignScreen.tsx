@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Clapperboard, Clock, Scissors, X } from 'lucide-react';
+import { ArrowLeft, Check, Clapperboard, Clock, Scissors, Sparkles, X } from 'lucide-react';
 
 import {
   Button,
@@ -17,6 +17,7 @@ import {
   Textarea,
   cn,
   type PickedImage,
+  useConfirm,
 } from '@/design-system';
 import type {
   CampaignVisibility,
@@ -30,8 +31,10 @@ import type {
   SocialPlatform,
 } from '@/shared/api';
 import { platformLabel, platformsLabel } from '@/shared/format/platform';
+import type { AiBriefDraft } from '@/shared/api';
 import { formatCampaignReward, formatMoney } from '@/shared/money/money';
 
+import { AiBriefDialog } from './AiBriefDialog';
 import {
   useCampaignCategories,
   useCreateCampaign,
@@ -101,6 +104,8 @@ export function CreateCampaignScreen() {
   const [contentRules, setContentRules] = useState<string[]>([]);
   const [ruleDraft, setRuleDraft] = useState('');
   const [references, setReferences] = useState('');
+  const [aiBriefOpen, setAiBriefOpen] = useState(false);
+  const confirm = useConfirm();
 
   const selectedCategory = categories.data?.find((category) => category.id === categoryId);
   // The end must come after the start (today when no start date is chosen).
@@ -117,6 +122,27 @@ export function CreateCampaignScreen() {
     else if (step === 2) setStep(1);
     else if (step === 3) setStep(2);
     else setStep(3);
+  }
+
+  /** Copies an AI draft into the requirements, asking first when it would replace text. */
+  async function applyAiDraft(draft: AiBriefDraft) {
+    const hasRequirements = Boolean(brief.trim() || goals.trim() || audience.trim() || contentRules.length || hashtags.length);
+    if (
+      hasRequirements &&
+      !(await confirm({
+        title: 'Replace your requirements?',
+        message: 'The AI draft replaces the brief, goals, audience, content rules and hashtags you entered.',
+        confirmLabel: 'Replace',
+      }))
+    ) {
+      return;
+    }
+    setBrief(draft.brief);
+    setGoals(draft.goals);
+    setAudience(draft.audience);
+    setContentRules([...new Set(draft.contentRules.map((rule) => rule.trim()).filter(Boolean))]);
+    setHashtags(appendTags([], draft.hashtags.join(' '), '#'));
+    setHashtagDraft('');
   }
 
   function addRule() {
@@ -268,6 +294,7 @@ export function CreateCampaignScreen() {
               onReferencesChange={setReferences}
               onContinue={() => setStep('review')}
               valid={requirementsValid}
+              onDraftWithAi={() => setAiBriefOpen(true)}
             />
           )}
         </>
@@ -278,6 +305,14 @@ export function CreateCampaignScreen() {
         onClose={() => setDraft(null)}
         onViewDraft={() => draft && router.replace(`/brand/campaigns/${draft.id}`)}
         onPublished={(campaign) => { setDraft(null); setLive(campaign); }}
+      />
+      <AiBriefDialog
+        open={aiBriefOpen}
+        onClose={() => setAiBriefOpen(false)}
+        title={title}
+        platforms={platforms}
+        contentType={campaignType}
+        onApply={(draft) => void applyAiDraft(draft)}
       />
     </div>
   );
@@ -444,12 +479,25 @@ interface RequirementsProps {
   onReferencesChange: (value: string) => void;
   onContinue: () => void;
   valid: boolean;
+  onDraftWithAi: () => void;
 }
 
 function RequirementsStep(props: RequirementsProps) {
   return (
     <div className="flex flex-col gap-5">
       <StepHeading title="Content Requirements" subtitle="Give creators a clear brief and posting guidelines." />
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface-raised p-4 sm:flex-row sm:items-center">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/15" aria-hidden>
+          <Sparkles className="size-5 text-green-text" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-text">Draft with AI</p>
+          <p className="text-sm text-text-muted">Describe what you&apos;re promoting and get a first draft of everything below.</p>
+        </div>
+        <Button variant="secondary" size="sm" fullWidth={false} onClick={props.onDraftWithAi}>
+          <Sparkles className="size-4" aria-hidden /> Draft with AI
+        </Button>
+      </div>
       <Textarea label="Campaign Brief" placeholder="Describe what creators should make…" value={props.brief} onChange={(event) => props.onBriefChange(event.target.value)} />
       <Textarea label="Campaign Goals (Optional)" placeholder="e.g. Drive awareness of the summer range" maxLength={2000} value={props.goals} onChange={(event) => props.onGoalsChange(event.target.value)} />
       <Textarea label="Target Audience (Optional)" placeholder="e.g. Women 18–30 interested in skincare" maxLength={2000} value={props.audience} onChange={(event) => props.onAudienceChange(event.target.value)} />

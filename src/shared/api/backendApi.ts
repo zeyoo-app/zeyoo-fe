@@ -1,8 +1,14 @@
 import { SESSION_EXPIRED_EVENT, STAFF_SESSION_EXPIRED_EVENT } from '../auth/sessionEvents';
 import type { Money } from '../money/money';
 import type { ZeyooApi } from './ZeyooApi';
+import { readServerSentEvents } from '../ai/sse';
 import { ApiError } from './errors';
 import type {
+  AiConnectionTest,
+  AiModel,
+  AiSettings,
+  AiStreamEvent,
+  AiStreamOptions,
   BillingPlan,
   BillingPlanDetails,
   Role,
@@ -193,6 +199,30 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     return response.json() as Promise<T>;
   }
 
+  /**
+   * Opens an assistant's server-sent-event stream and forwards each event. Errors
+   * before the stream opens (validation, access) throw like any request; failures
+   * after it opens arrive as an `error` event. Aborting the signal cancels the run.
+   */
+  async function streamAssistant<T>(path: string, body: unknown, options: AiStreamOptions<T>, allowRetry = true): Promise<void> {
+    const current = await token();
+    const response = await fetch(`${root}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...(current ? { Authorization: `Bearer ${current}` } : {}) },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+      signal: options.signal,
+    });
+    if (response.status === 401 && accessToken && allowRetry) {
+      accessToken = null;
+      if (await refreshAccessToken()) return streamAssistant(path, body, options, false);
+    }
+    if (response.status === 401 && typeof window !== 'undefined') window.dispatchEvent(new Event(channel.expiredEvent));
+    if (!response.ok) throw await apiError(response);
+    if (!response.body) throw new ApiError('The assistant sent no reply.');
+    await readServerSentEvents(response.body, (event) => options.onEvent(event as AiStreamEvent<T>));
+  }
+
   async function storeTokens(tokens: BackendTokens): Promise<void> {
     resetSessionContext();
     accessToken = tokens.accessToken;
@@ -277,7 +307,7 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     },
     getBrandCampaigns: listBrandCampaigns,
     async getCampaign(campaignId) { return mapCampaign(await request<BackendCampaign>('GET', `/campaigns/${campaignId}`), organizationName); },
-    async getCampaignCategories() { return request<CampaignCategory[]>('GET', '/campaign-categories', undefined, false); },
+    async getCampaignCategories() { return request<CampaignCategory[]>('GET', '/campaign-categories'); },
     async createCampaign(input) {
       const id = await currentOrganizationId();
       const value = await request<BackendCampaign>('POST', `/organizations/${id}/campaigns`, {
@@ -541,8 +571,20 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     async adminCloseFraudCase({ caseId, action }) {
       return mapFraudCase(await request<BackendFraudCase>('POST', `/admin/fraud-cases/${caseId}/${action}`));
     },
-    async generateBrief(input) { return request('POST', '/ai/campaign-brief', { idea: `${input.product}: ${input.goal} for ${input.platform}` }); },
-    async generateContentIdeas(input) { return request('POST', '/ai/content-ideas', { topic: input.campaignId }); },
+    streamCampaignBrief(input, options) {
+      return streamAssistant('/ai/campaign-brief/stream', {
+        idea: input.idea, goal: input.goal || undefined, title: input.title || undefined,
+        platforms: input.platforms.map((item) => item.toUpperCase()), contentType: input.contentType.toUpperCase(), language: input.language,
+      }, options);
+    },
+    streamContentIdeas(input, options) {
+      return streamAssistant('/ai/content-ideas/stream', { campaignId: input.campaignId, focus: input.focus || undefined, language: input.language }, options);
+    },
+    async getAiSettings() { return request<AiSettings>('GET', '/admin/ai/settings'); },
+    async getAiModels(provider) { return request<AiModel[]>('GET', `/admin/ai/providers/${provider}/models`); },
+    async updateAiSettings(input) { return request<AiSettings>('POST', '/admin/ai/settings', input); },
+    async resetAiSettings() { return request<AiSettings>('POST', '/admin/ai/settings/reset'); },
+    async testAiConnection() { return request<AiConnectionTest>('POST', '/admin/ai/test'); },
   };
 }
 

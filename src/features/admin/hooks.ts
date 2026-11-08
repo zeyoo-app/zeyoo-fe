@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useApi } from '@/shared/api';
-import type { AdminCampaignStatus, AdminUserQuery } from '@/shared/api';
+import type { AdminCampaignStatus, AdminUserQuery, AiProviderId } from '@/shared/api';
 
 const ROOT = ['admin'] as const;
 
@@ -170,4 +170,39 @@ export function useSetStaffActive() {
     mutationFn: (input: { staffId: string; active: boolean }) => api.setAdminStaffActive(input),
     onSuccess: refresh,
   });
+}
+
+export function useAiSettings() {
+  const api = useApi();
+  return useQuery({ queryKey: [...ROOT, 'ai', 'settings'], queryFn: () => api.getAiSettings() });
+}
+
+export function useAiModels(provider: AiProviderId | null) {
+  const api = useApi();
+  return useQuery({
+    queryKey: [...ROOT, 'ai', 'models', provider],
+    queryFn: () => api.getAiModels(provider as AiProviderId),
+    enabled: provider !== null,
+    retry: false,
+  });
+}
+
+export function useUpdateAiSettings() {
+  const api = useApi();
+  const refresh = useRefreshAdmin();
+  return useMutation({
+    mutationFn: (input: { provider: AiProviderId; model: string }) => api.updateAiSettings(input),
+    onSuccess: refresh,
+  });
+}
+
+export function useResetAiSettings() {
+  const api = useApi();
+  const refresh = useRefreshAdmin();
+  return useMutation({ mutationFn: () => api.resetAiSettings(), onSuccess: refresh });
+}
+
+export function useTestAiConnection() {
+  const api = useApi();
+  return useMutation({ mutationFn: () => api.testAiConnection() });
 }
