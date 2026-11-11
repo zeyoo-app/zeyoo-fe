@@ -46,7 +46,7 @@ export function PaymentMethodScreen() {
               <Divider />
               <div className="flex items-center justify-between">
                 <span className="text-sm text-text-muted">Total funded</span>
-                <span className="font-mono text-sm text-text">{formatMoney(data.totalFunded)}</span>
+                <span className="font-numeric text-sm text-text">{formatMoney(data.totalFunded)}</span>
               </div>
             </Card>
 

@@ -84,7 +84,7 @@ export function SubscriptionScreen() {
               <Divider />
               <div className="flex items-center justify-between">
                 <span className="text-sm text-text-muted">Spend this month</span>
-                <span className="font-mono text-sm text-text">
+                <span className="font-numeric text-sm text-text">
                   {formatMoney(data.billing.monthlySpend)}
                 </span>
               </div>
@@ -179,7 +179,7 @@ function PlanCard({ plan, current, selected, onSelect }: PlanCardProps) {
         <span className="font-display text-lg font-semibold text-text">{plan.plan}</span>
         {current ? <Badge tone="success">Current</Badge> : null}
       </div>
-      <p className="font-mono text-2xl text-text">
+      <p className="font-numeric text-2xl text-text">
         {price.minorUnits === 0 ? 'Free' : formatMoney(price, locale)}
         {price.minorUnits === 0 ? null : (
           <span className="font-sans text-sm text-text-muted"> / month</span>

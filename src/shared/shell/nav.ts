@@ -1,4 +1,4 @@
-import { Compass, Home, LayoutGrid, ListChecks, User, Users, Wallet } from 'lucide-react';
+import { Compass, Home, ListChecks, Megaphone, User, Users, Wallet } from 'lucide-react';
 
 import type { Role } from '@/shared/api';
 
@@ -6,7 +6,7 @@ import type { NavItem } from './AppShell';
 
 const BRAND_NAV: NavItem[] = [
   { href: '/brand/dashboard', label: 'Home', icon: Home },
-  { href: '/brand/campaigns', label: 'Campaigns', icon: LayoutGrid },
+  { href: '/brand/campaigns', label: 'Campaigns', icon: Megaphone },
   { href: '/brand/creators', label: 'Creators', icon: Users },
   { href: '/brand/wallet', label: 'Wallet', icon: Wallet },
   { href: '/brand/profile', label: 'Profile', icon: User },

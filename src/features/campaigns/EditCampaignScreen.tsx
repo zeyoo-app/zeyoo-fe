@@ -8,6 +8,7 @@ import type { Campaign } from '@/shared/api';
 import { BackButton } from '@/shared/nav/BackButton';
 
 import { useCampaign, useUpdateCampaign } from './hooks';
+import { AudienceFields } from './AudienceFields';
 
 /** Splits "#a, #b c" into ["#a", "#b", "#c"], adding the prefix where it is missing. */
 function parseTags(value: string, prefix: '#' | '@'): string[] {
@@ -89,7 +90,7 @@ function EditForm({ campaign }: { campaign: Campaign }) {
       <Field label="Campaign Title" maxLength={140} value={title} onChange={(event) => setTitle(event.target.value)} />
       <Textarea label="Campaign Brief" value={brief} onChange={(event) => setBrief(event.target.value)} />
       <Textarea label="Campaign Goals (Optional)" maxLength={2000} value={goals} onChange={(event) => setGoals(event.target.value)} />
-      <Textarea label="Target Audience (Optional)" maxLength={2000} value={audience} onChange={(event) => setAudience(event.target.value)} />
+      <AudienceFields value={audience} onChange={setAudience} />
       <Textarea label="Content Rules (one per line)" value={rules} onChange={(event) => setRules(event.target.value)} />
       <Field label="Required Hashtags" value={hashtags} onChange={(event) => setHashtags(event.target.value)} />
       <Field label="Required Mentions" value={mentions} onChange={(event) => setMentions(event.target.value)} />

@@ -35,6 +35,8 @@ const PLATFORM_FILTERS: Choice<PlatformFilter>[] = [
   { value: 'tiktok', label: 'TikTok' },
   { value: 'youtube', label: 'YouTube' },
   { value: 'snapchat', label: 'Snapchat' },
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'x', label: 'X (Twitter)' },
 ];
 
 const STATUS_LABEL: Record<CampaignInvitation['status'], string> = {

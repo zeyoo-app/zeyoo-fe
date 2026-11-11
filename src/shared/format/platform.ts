@@ -11,6 +11,7 @@ const LABELS: Record<PostPlatform, string> = {
   snapchat: 'Snapchat',
   youtube: 'YouTube',
   x: 'X',
+  facebook: 'Facebook',
 };
 
 export function platformLabel(platform: PostPlatform): string {

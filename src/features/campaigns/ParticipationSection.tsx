@@ -1,24 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-import { Badge, Button, Card, Field, SegmentedToggle, Textarea } from '@/design-system';
+import { Badge, Button, Card, Field, SegmentedToggle } from '@/design-system';
 import { useApi } from '@/shared/api';
 import { uploadVideo } from '@/shared/media/videoUpload';
-import type { Campaign, CreatorSubmission, MyApplication, PostPlatform, SubmissionKind } from '@/shared/api';
+import type { Campaign, CreatorSubmission, PostPlatform, SubmissionKind } from '@/shared/api';
 import { platformLabel } from '@/shared/format/platform';
 import { POST_LINK_PLACEHOLDERS, postLinkProblem } from '@/shared/format/postLinks';
 
 import {
-  useApplyToCampaign,
   useMyApplications,
   useMyInvitations,
   useMySubmissions,
   useResubmit,
   useSubmitParticipation,
-  useWithdrawApplication,
 } from '../submissions/hooks';
 
 const KIND_OPTIONS: { value: SubmissionKind; label: string }[] = [
@@ -33,15 +31,11 @@ const SUBMISSION_STATUS: Record<CreatorSubmission['status'], { label: string; to
   rejected: { label: 'Rejected', tone: 'danger' },
 };
 
-const APPLICATION_COPY: Record<Exclude<MyApplication['status'], 'approved'>, { label: string; tone: 'neutral' | 'danger'; body: string }> = {
-  pending: { label: 'Pending', tone: 'neutral', body: 'Your application is with the brand. We will notify you when they decide.' },
-  declined: { label: 'Not approved', tone: 'danger', body: 'The brand did not approve your application for this campaign.' },
-  withdrawn: { label: 'Withdrawn', tone: 'neutral', body: 'You withdrew your application to this campaign.' },
-};
-
 /**
- * Where a creator stands on a campaign, and the one thing they can do next (contract §1.3):
- * apply and accept the terms → wait for the brand → submit → revise if changes are asked for.
+ * Where a creator stands on a campaign, and the one thing they can do next (contract §1.3).
+ * There is no application to wait on: a creator posts their content, submits the link
+ * here, and the brand approves or rejects the submission itself. An approved submission
+ * is what earns. A revision follows if the brand asks for changes.
  */
 export function ParticipationSection({ campaign }: { campaign: Campaign }) {
   const applications = useMyApplications();
@@ -52,98 +46,59 @@ export function ParticipationSection({ campaign }: { campaign: Campaign }) {
   if (submission) return <SubmittedCard campaign={campaign} submission={submission} />;
 
   const application = applications.data?.find((item) => item.campaignId === campaign.id);
-  if (!application) return <ApplyCard campaign={campaign} />;
-  if (application.status === 'approved') {
-    return (
-      <Card className="mt-4">
-        <h2 className="font-display text-lg font-semibold text-text">Submit your content</h2>
-        <p className="mt-1 text-sm text-text-muted">Your application was approved. Post your content, then submit it here.</p>
-        <SubmitForm campaign={campaign} />
-      </Card>
-    );
-  }
-  const copy = APPLICATION_COPY[application.status];
-  return <ApplicationStatusCard application={application} copy={copy} />;
+  if (application?.status === 'declined') return <DeclinedCard />;
+  // Anyone who applied under the old flow already accepted the terms then.
+  return <SubmitContentCard campaign={campaign} termsAlreadyAccepted={Boolean(application)} />;
 }
 
-function ApplyCard({ campaign }: { campaign: Campaign }) {
-  const apply = useApplyToCampaign();
+function SubmitContentCard({ campaign, termsAlreadyAccepted }: { campaign: Campaign; termsAlreadyAccepted: boolean }) {
   const invitations = useMyInvitations();
   const invited = Boolean(invitations.data?.some((item) => item.campaignId === campaign.id));
-  const [accepted, setAccepted] = useState(false);
-  const [message, setMessage] = useState('');
+  const [accepted, setAccepted] = useState(termsAlreadyAccepted);
 
   return (
-    <Card className="mt-4 flex flex-col gap-3">
-      <h2 className="font-display text-lg font-semibold text-text">{invited ? 'Accept your invitation' : 'Apply to join'}</h2>
+    <Card className="mt-4 flex flex-col gap-1">
+      <h2 className="font-display text-lg font-semibold text-text">Submit your content</h2>
       <p className="text-sm text-text-muted">
-        The brand reviews each application. Once you are approved you can submit your content and start earning.
+        {invited ? 'You were invited to this campaign. ' : ''}Publish your post, then paste its link here. The brand
+        reviews your submission, and you are paid once it is approved.
       </p>
-      <Textarea
-        placeholder="Message to the brand (optional) — why you are a good fit"
-        value={message}
-        maxLength={1000}
-        onChange={(event) => setMessage(event.target.value)}
+      <SubmitForm
+        campaign={campaign}
+        acceptedTerms={accepted}
+        blocked={!accepted}
+        beforeSubmit={
+          termsAlreadyAccepted ? null : (
+            <label className="flex items-start gap-3 text-sm text-text">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-[var(--primary)]"
+                checked={accepted}
+                onChange={(event) => setAccepted(event.target.checked)}
+              />
+              <span>
+                I accept this campaign&apos;s terms — its brief, requirements and reward terms — and Zeyoo&apos;s{' '}
+                <Link href="/campaign-rules" target="_blank" className="text-green-text underline">
+                  Campaign Rules
+                </Link>
+                .
+              </span>
+            </label>
+          )
+        }
       />
-      <label className="flex items-start gap-3 text-sm text-text">
-        <input
-          type="checkbox"
-          className="mt-0.5 size-4 accent-[var(--primary)]"
-          checked={accepted}
-          onChange={(event) => setAccepted(event.target.checked)}
-        />
-        <span>
-          I accept this campaign&apos;s terms — its brief, requirements and reward terms — and Zeyoo&apos;s{' '}
-          <Link href="/campaign-rules" target="_blank" className="text-green-text underline">
-            Campaign Rules
-          </Link>
-          .
-        </span>
-      </label>
-      {apply.error ? (
-        <p className="text-xs text-danger">
-          {apply.error instanceof Error ? apply.error.message : 'Could not send your application.'}
-        </p>
-      ) : null}
-      <div>
-        <Button
-          fullWidth={false}
-          loading={apply.isPending}
-          disabled={!accepted || apply.isPending}
-          onClick={() => apply.mutate({ campaignId: campaign.id, message })}
-        >
-          {invited ? 'Accept and apply' : 'Apply'}
-        </Button>
-      </div>
     </Card>
   );
 }
 
-function ApplicationStatusCard({
-  application,
-  copy,
-}: {
-  application: MyApplication;
-  copy: (typeof APPLICATION_COPY)[keyof typeof APPLICATION_COPY];
-}) {
-  const withdraw = useWithdrawApplication();
+function DeclinedCard() {
   return (
     <Card className="mt-4 flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold text-text">Your application</h2>
-        <Badge tone={copy.tone}>{copy.label}</Badge>
+        <h2 className="font-display text-lg font-semibold text-text">Your participation</h2>
+        <Badge tone="danger">Not approved</Badge>
       </div>
-      <p className="text-sm text-text-muted">{copy.body}</p>
-      {application.status === 'pending' ? (
-        <div>
-          <Button variant="secondary" fullWidth={false} loading={withdraw.isPending} onClick={() => withdraw.mutate(application.id)}>
-            Withdraw application
-          </Button>
-        </div>
-      ) : null}
-      {withdraw.error ? (
-        <p className="text-xs text-danger">{withdraw.error instanceof Error ? withdraw.error.message : 'Could not withdraw.'}</p>
-      ) : null}
+      <p className="text-sm text-text-muted">The brand did not approve your participation in this campaign.</p>
     </Card>
   );
 }
@@ -195,7 +150,22 @@ function campaignPlatforms(campaign: Campaign): PostPlatform[] {
  * A new submission, or — with `revisionOf` — the revised content after changes were
  * requested. Links go one per campaign platform; at least one is needed.
  */
-function SubmitForm({ campaign, revisionOf }: { campaign: Campaign; revisionOf?: CreatorSubmission }) {
+function SubmitForm({
+  campaign,
+  revisionOf,
+  acceptedTerms,
+  blocked = false,
+  beforeSubmit,
+}: {
+  campaign: Campaign;
+  revisionOf?: CreatorSubmission;
+  /** Sent with a first submission, which is how the creator joins the campaign. */
+  acceptedTerms?: boolean;
+  /** Holds the button until something outside the form is done, such as accepting the terms. */
+  blocked?: boolean;
+  /** Shown just above the button, e.g. the terms the creator must accept first. */
+  beforeSubmit?: ReactNode;
+}) {
   const router = useRouter();
   const submit = useSubmitParticipation();
   const resubmit = useResubmit();
@@ -214,7 +184,7 @@ function SubmitForm({ campaign, revisionOf }: { campaign: Campaign; revisionOf?:
     .filter((post) => post.url.length > 0);
   const linksValid = filled.every((post) => postLinkProblem(post.url, post.platform) === null);
   const ready = kind === 'link' ? filled.length > 0 && linksValid : Boolean(uploadedUrl);
-  const canSubmit = ready && !pending;
+  const canSubmit = ready && !pending && !blocked;
 
   function onSubmit() {
     const content =
@@ -228,7 +198,7 @@ function SubmitForm({ campaign, revisionOf }: { campaign: Campaign; revisionOf?:
     if (revisionOf) {
       resubmit.mutate({ submissionId: revisionOf.id, ...content }, done);
     } else {
-      submit.mutate({ campaignId: campaign.id, ...content }, done);
+      submit.mutate({ campaignId: campaign.id, acceptedTerms, ...content }, done);
     }
   }
 
@@ -263,9 +233,10 @@ function SubmitForm({ campaign, revisionOf }: { campaign: Campaign; revisionOf?:
         <VideoUploadField onUploaded={setUploadedUrl} />
       )}
       {error ? <p className="text-xs text-danger">{error instanceof Error ? error.message : 'Could not submit.'}</p> : null}
+      {beforeSubmit}
       <div>
         <Button fullWidth={false} loading={pending} disabled={!canSubmit} onClick={onSubmit}>
-          {revisionOf ? 'Submit revision' : 'Submit for review'}
+          {revisionOf ? 'Submit revision' : 'Submit Content'}
         </Button>
       </div>
     </div>

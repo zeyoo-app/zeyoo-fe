@@ -62,7 +62,7 @@ export function PhoneInput({ label = 'Phone number', value, onChange, error }: P
           type="tel"
           inputMode="tel"
           autoComplete="tel-national"
-          placeholder="801 234 5678"
+          placeholder={country.placeholder}
           value={localNumber}
           onChange={(event) => updateNumber(event.target.value)}
           aria-invalid={message ? true : undefined}

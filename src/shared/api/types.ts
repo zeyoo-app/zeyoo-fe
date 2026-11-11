@@ -7,10 +7,10 @@ import type { Money } from '../money/money';
 
 export type Role = 'brand' | 'creator';
 
-export type SocialPlatform = 'instagram' | 'tiktok' | 'snapchat' | 'youtube';
+export type SocialPlatform = 'instagram' | 'tiktok' | 'snapchat' | 'youtube' | 'x' | 'facebook';
 
 /** A platform a submitted post can be on (X campaigns are possible on the backend). */
-export type PostPlatform = SocialPlatform | 'x';
+export type PostPlatform = SocialPlatform;
 
 export type CampaignStatus = 'draft' | 'live' | 'closed';
 
@@ -314,7 +314,11 @@ export type SubmissionContent =
 
 export type ResubmitInput = SubmissionContent & { submissionId: string };
 
-export type SubmitParticipationInput = SubmissionContent & { campaignId: string };
+export type SubmitParticipationInput = SubmissionContent & {
+  campaignId: string;
+  /** A first submission is how a creator joins, so it carries their acceptance of the terms. */
+  acceptedTerms?: boolean;
+};
 
 // -------------------------------------------------------------------------------------
 // Dashboard

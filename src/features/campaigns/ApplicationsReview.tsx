@@ -217,7 +217,7 @@ function Detail({ title, children }: { title: string; children: ReactNode }) {
 function Stat({ value, label }: { value: number; label: string }) {
   return (
     <div>
-      <p className="font-mono text-2xl text-text">{value}</p>
+      <p className="font-numeric text-2xl text-text">{value}</p>
       <p className="text-xs text-text-muted">{label}</p>
     </div>
   );

@@ -77,9 +77,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Money and metrics always render in the mono face — the data-product signature. */
+/*
+ * Money and metrics: the UI face with tabular figures, so numbers match the rest of the
+ * app and still line up in columns. (A coding font's slashed zero read as an icon.) The
+ * mono face is kept only for machine identifiers such as references and IDs.
+ */
 .font-numeric {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+}
+
+/* Medium weight by default; in the base layer so a weight utility on the element still wins. */
+@layer base {
+  .font-numeric {
+    font-weight: 500;
+  }
 }

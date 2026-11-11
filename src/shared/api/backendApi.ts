@@ -373,7 +373,7 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
       ]);
       return submissions.map((submission) => withCreatorEarnings(mapSubmission(submission), earnings));
     },
-    async submitParticipation({ campaignId, ...content }) { return { ...mapSubmission(await request<BackendSubmission>('POST', `/campaigns/${campaignId}/submissions`, toContentBody(content))), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false }; },
+    async submitParticipation({ campaignId, acceptedTerms, ...content }) { return { ...mapSubmission(await request<BackendSubmission>('POST', `/campaigns/${campaignId}/submissions`, { ...toContentBody(content), acceptedTerms })), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false }; },
     async resubmitSubmission({ submissionId, ...content }) { return { ...mapSubmission(await request<BackendSubmission>('POST', `/submissions/${submissionId}/revisions`, toContentBody(content))), campaignTitle: 'Campaign', brandName: 'Brand', cap: ZERO_USD, capReached: false }; },
     async startVideoUpload({ contentType, size }) { return request<VideoUploadTicket>('POST', '/media/uploads/videos', { contentType, size }); },
     async completeVideoUpload(uploadId) { return request<UploadedVideo>('POST', `/media/uploads/videos/${uploadId}/complete`); },
@@ -704,6 +704,7 @@ const POST_PLATFORM_LABELS: Record<PostPlatform, string> = {
   snapchat: 'Snapchat',
   youtube: 'YouTube',
   x: 'X',
+  facebook: 'Facebook',
 };
 
 function postPlatformLabel(value: string): string {
@@ -725,6 +726,7 @@ function platformOfUrl(url: string): PostPlatform {
   if (host.endsWith('youtube.com') || host === 'youtu.be') return 'youtube';
   if (host.endsWith('snapchat.com')) return 'snapchat';
   if (host.endsWith('x.com') || host.endsWith('twitter.com')) return 'x';
+  if (host.endsWith('facebook.com') || host === 'fb.watch') return 'facebook';
   return 'tiktok';
 }
 
@@ -967,7 +969,7 @@ function mapSocialAccount(account: BackendSocialAccount): SocialAccount {
   return { platform: platform(account.platform), handle: account.handle, connected: account.status === 'CONNECTED', verified: Boolean(account.verifiedAt), followers: 0 };
 }
 
-function platform(value: string): Campaign['platform'] { return value === 'INSTAGRAM' ? 'instagram' : value === 'SNAPCHAT' ? 'snapchat' : value === 'YOUTUBE' ? 'youtube' : 'tiktok'; }
+function platform(value: string): Campaign['platform'] { return value === 'INSTAGRAM' ? 'instagram' : value === 'SNAPCHAT' ? 'snapchat' : value === 'YOUTUBE' ? 'youtube' : value === 'X' ? 'x' : value === 'FACEBOOK' ? 'facebook' : 'tiktok'; }
 function describeCampaign(input: { brief: string; title: string }) { return input.brief || input.title; }
 function serializeGuidelines(requirements: CampaignRequirements) { return requirements.contentRules.join('\n'); }
 function parseGuidelines(value?: string | null) { return value?.split('\n').map((item) => item.trim()).filter(Boolean) ?? []; }
