@@ -14,6 +14,9 @@ function messageOf(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+/** How a code request ended; `account_missing` lets sign-in send the person to sign-up. */
+export type SendResult = 'sent' | 'account_missing' | 'failed';
+
 /**
  * Drives passwordless sign-in and sign-up through an emailed or texted one-time
  * code. Sign-up creates the account once the code is verified; sign-in never does,
@@ -30,17 +33,18 @@ export function useSignIn({ navigate = true, intent }: { navigate?: boolean; int
   const [notice, setNotice] = useState<string | null>(null);
   const [accountMissing, setAccountMissing] = useState(false);
 
-  async function send(request: () => Promise<{ message: string }>, fallback: string) {
+  async function send(request: () => Promise<{ message: string }>, fallback: string): Promise<SendResult> {
     setIsPending(true);
     setError(null);
     setAccountMissing(false);
     try {
       setNotice((await request()).message);
-      return true;
+      return 'sent';
     } catch (cause) {
-      setAccountMissing(errorCodeOf(cause) === API_ERROR.accountNotFound);
+      const missing = errorCodeOf(cause) === API_ERROR.accountNotFound;
+      setAccountMissing(missing);
       setError(messageOf(cause, fallback));
-      return false;
+      return missing ? 'account_missing' : 'failed';
     } finally {
       setIsPending(false);
     }

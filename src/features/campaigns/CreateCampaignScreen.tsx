@@ -35,6 +35,8 @@ import type { AiBriefDraft } from '@/shared/api';
 import { formatCampaignReward, formatMoney } from '@/shared/money/money';
 
 import { AiBriefDialog } from './AiBriefDialog';
+import { formatAudience, parseAudience } from './audience';
+import { AudienceFields } from './AudienceFields';
 import {
   useCampaignCategories,
   useCreateCampaign,
@@ -46,9 +48,10 @@ import { useBrandBilling } from '../earnings/hooks';
 
 type WizardStep = 1 | 2 | 3 | 'review';
 
-const PLATFORMS = (['instagram', 'tiktok', 'youtube'] as const).map((value) => ({
+const PLATFORMS = (['instagram', 'tiktok', 'youtube', 'facebook', 'snapchat', 'x'] as const).map((value) => ({
   value,
-  label: platformLabel(value),
+  // X is still widely known as Twitter, so the picker names both.
+  label: value === 'x' ? 'X (Twitter)' : platformLabel(value),
 }));
 const CAMPAIGN_TYPES: { value: CampaignContentType; label: string; description: string }[] = [
   { value: 'ugc', label: 'UGC', description: 'Creators produce original content featuring your brand.' },
@@ -139,7 +142,8 @@ export function CreateCampaignScreen() {
     }
     setBrief(draft.brief);
     setGoals(draft.goals);
-    setAudience(draft.audience);
+    // The audience is picked from lists, so only the part of the draft they can show is kept.
+    setAudience(formatAudience(parseAudience(draft.audience)));
     setContentRules([...new Set(draft.contentRules.map((rule) => rule.trim()).filter(Boolean))]);
     setHashtags(appendTags([], draft.hashtags.join(' '), '#'));
     setHashtagDraft('');
@@ -500,7 +504,7 @@ function RequirementsStep(props: RequirementsProps) {
       </div>
       <Textarea label="Campaign Brief" placeholder="Describe what creators should make…" value={props.brief} onChange={(event) => props.onBriefChange(event.target.value)} />
       <Textarea label="Campaign Goals (Optional)" placeholder="e.g. Drive awareness of the summer range" maxLength={2000} value={props.goals} onChange={(event) => props.onGoalsChange(event.target.value)} />
-      <Textarea label="Target Audience (Optional)" placeholder="e.g. Women 18–30 interested in skincare" maxLength={2000} value={props.audience} onChange={(event) => props.onAudienceChange(event.target.value)} />
+      <AudienceFields value={props.audience} onChange={props.onAudienceChange} />
       <div className="flex flex-col gap-2">
         <p className="text-[13px] font-medium text-text-muted">Content Rules</p>
         <div className="flex gap-2">

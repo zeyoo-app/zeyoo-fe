@@ -6,6 +6,7 @@ const HOSTS: { platform: PostPlatform; pattern: RegExp }[] = [
   { platform: 'youtube', pattern: /(^|\.)youtube\.com$|^youtu\.be$/ },
   { platform: 'snapchat', pattern: /(^|\.)snapchat\.com$/ },
   { platform: 'x', pattern: /(^|\.)(x|twitter)\.com$/ },
+  { platform: 'facebook', pattern: /(^|\.)facebook\.com$|^fb\.watch$/ },
 ];
 
 export const POST_LINK_PLACEHOLDERS: Record<PostPlatform, string> = {
@@ -14,6 +15,7 @@ export const POST_LINK_PLACEHOLDERS: Record<PostPlatform, string> = {
   youtube: 'https://youtube.com/shorts/...',
   snapchat: 'https://www.snapchat.com/spotlight/...',
   x: 'https://x.com/you/status/...',
+  facebook: 'https://www.facebook.com/reel/...',
 };
 
 /** A real web link — not just any text with a dot in it. */

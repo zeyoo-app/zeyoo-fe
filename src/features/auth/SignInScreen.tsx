@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { Button, Field } from '@/design-system';
 import { isCompletePhone, normalizePhone } from '@/shared/format/phone';
@@ -11,6 +12,7 @@ import { AuthChannelSwitch } from './AuthChannelSwitch';
 import type { AuthChannel } from './channel';
 import { PhoneInput } from './PhoneInput';
 import { retryAfterSeconds } from './retryAfter';
+import { handOffToSignUp } from './signUpHandoff';
 import { useCooldown } from './useCooldown';
 import { SocialAuthButtons } from './SocialAuthButtons';
 import { StepCode } from './StepCode';
@@ -18,10 +20,11 @@ import { useSignIn } from './hooks';
 
 /**
  * Passwordless sign-in through an emailed or texted one-time code. It never creates
- * an account: an address or number with none stays here with a clear message and a
- * way to create one.
+ * an account: an email or phone number with none goes straight on to sign-up with
+ * what was typed already filled in.
  */
 export function SignInScreen() {
+  const router = useRouter();
   const {
     requestCode,
     signInWithCode,
@@ -38,6 +41,8 @@ export function SignInScreen() {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [awaitingCode, setAwaitingCode] = useState(false);
+  // Set while leaving for sign-up, so the "no account" message never flashes up meanwhile.
+  const [redirecting, setRedirecting] = useState(false);
 
   const { remaining, start } = useCooldown();
   const waitSeconds = retryAfterSeconds(error);
@@ -46,7 +51,7 @@ export function SignInScreen() {
   }, [waitSeconds, start, error]);
   // While the server is making us wait, show the live countdown instead of the frozen message.
   const isPhone = channel === 'phone';
-  const identifierError = accountMissing ? (
+  const identifierError = redirecting ? null : accountMissing ? (
     <>
       No account with this {isPhone ? 'number' : 'email'}.{' '}
       <Link href="/sign-up" className="font-semibold underline">
@@ -62,8 +67,15 @@ export function SignInScreen() {
   const canContinue = isPhone ? isCompletePhone(phone) : email.includes('@');
 
   async function submitIdentifier() {
-    const sent = isPhone ? await requestPhoneCode(normalizePhone(phone)) : await requestCode(email.trim());
-    if (sent) setAwaitingCode(true);
+    const value = isPhone ? normalizePhone(phone) : email.trim();
+    const result = isPhone ? await requestPhoneCode(value) : await requestCode(value);
+    if (result === 'sent') {
+      setAwaitingCode(true);
+    } else if (result === 'account_missing') {
+      handOffToSignUp({ channel, value });
+      setRedirecting(true);
+      router.push('/sign-up');
+    }
   }
 
   function switchChannel(next: AuthChannel) {
@@ -124,8 +136,8 @@ export function SignInScreen() {
           )}
 
           <Button
-            loading={isPending}
-            disabled={!canContinue || isPending || remaining > 0}
+            loading={isPending || redirecting}
+            disabled={!canContinue || isPending || redirecting || remaining > 0}
             onClick={submitIdentifier}
           >
             Continue

@@ -176,13 +176,13 @@ export const CAMPAIGN_RULES: PublicLegalDocument = {
   description: 'What every creator accepts when applying to a Zeyoo campaign, and what brands agree to.',
   lastUpdated: 'Last updated: October 2026',
   intro:
-    'These rules apply to every Zeyoo campaign. Applying to a campaign means you accept them, together with that campaign’s own brief, requirements and reward terms.',
+    'These rules apply to every Zeyoo campaign. Submitting content to a campaign means you accept them, together with that campaign’s own brief, requirements and reward terms.',
   sections: [
     {
-      heading: '1. Applying and taking part',
+      heading: '1. Taking part',
       paragraphs: [
-        'Apply only to campaigns you intend to complete, from an account you own.',
-        'A brand may approve or decline any application. You can submit content only once approved.',
+        'Submit only to campaigns you intend to complete, from an account you own.',
+        'A brand may approve or reject any submission. You are paid only for approved submissions.',
         'Private campaigns are open only to creators the brand invited.',
       ],
     },

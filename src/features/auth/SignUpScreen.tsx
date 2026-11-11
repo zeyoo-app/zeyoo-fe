@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -13,8 +13,9 @@ import { StepAccount } from './StepAccount';
 import { StepCode } from './StepCode';
 import { StepDetails } from './StepDetails';
 import { StepHeader } from './StepHeader';
-import type { AuthChannel } from './channel';
+import { CHANNEL_NOUN, type AuthChannel } from './channel';
 import { useSignIn } from './hooks';
+import { clearSignUpHandoff, handedOffToSignUp } from './signUpHandoff';
 
 const TOTAL_STEPS = 3;
 
@@ -45,12 +46,15 @@ export function SignUpScreen() {
     error,
     notice,
   } = useSignIn({ navigate: false, intent: 'sign_up' });
+  // An email or number sign-in found no account for arrives already filled in.
+  const [handoff] = useState(handedOffToSignUp);
+  useEffect(() => clearSignUpHandoff(), []);
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role>('brand');
-  const [channel, setChannel] = useState<AuthChannel>('email');
+  const [channel, setChannel] = useState<AuthChannel>(handoff?.channel ?? 'email');
   const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState(handoff?.channel === 'email' ? handoff.value : '');
+  const [phone, setPhone] = useState(handoff?.channel === 'phone' ? handoff.value : '');
   const [awaitingCode, setAwaitingCode] = useState(false);
 
   const isPhone = channel === 'phone';
@@ -61,10 +65,10 @@ export function SignUpScreen() {
   }
 
   async function submitDetails() {
-    const sent = isPhone
+    const result = isPhone
       ? await requestPhoneCode(normalizePhone(phone))
       : await requestCode(email.trim());
-    if (sent) setAwaitingCode(true);
+    if (result === 'sent') setAwaitingCode(true);
   }
 
   function enterApp(session: Session) {
@@ -90,7 +94,9 @@ export function SignUpScreen() {
         }
         subtitle={
           step === 1
-            ? 'Get paid to create. Get campaigns done.'
+            ? handoff
+              ? `This ${CHANNEL_NOUN[handoff.channel].address} isn't registered yet. Choose an account type to create your account.`
+              : 'Get paid to create. Get campaigns done.'
             : awaitingCode
               ? `${notice ?? `We sent a 6-digit code to ${isPhone ? normalizePhone(phone) : email.trim()}.`} Enter it below.`
               : DETAILS_COPY[role].subtitle

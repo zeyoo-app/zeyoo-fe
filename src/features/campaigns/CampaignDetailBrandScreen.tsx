@@ -143,7 +143,11 @@ function CampaignDetail({ campaign }: { campaign: Campaign }) {
         ariaLabel="Campaign sections"
         tabs={[
           { value: 'overview', label: 'Overview' },
-          { value: 'applications', label: 'Applications', badge: pendingApplications },
+          // Creators now join by submitting, so this only lingers while applications
+          // sent before that change still await a decision.
+          ...(pendingApplications > 0 || tab === 'applications'
+            ? [{ value: 'applications' as const, label: 'Applications', badge: pendingApplications }]
+            : []),
           { value: 'submissions', label: 'Submissions', badge: pendingSubmissions },
         ]}
         value={tab}

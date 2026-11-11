@@ -14,6 +14,8 @@ const GLOW_POSITION: Record<SocialPlatform, string> = {
   tiktok: '65% 25%',
   snapchat: '42% 30%',
   youtube: '35% 20%',
+  x: '58% 18%',
+  facebook: '45% 22%',
 };
 
 export function CampaignCover({
