@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, Clapperboard, Clock, Scissors, Sparkles, X } from 'lucide-react';
 
@@ -37,6 +37,20 @@ import { formatCampaignReward, formatMoney } from '@/shared/money/money';
 import { AiBriefDialog } from './AiBriefDialog';
 import { formatAudience, parseAudience } from './audience';
 import { AudienceFields } from './AudienceFields';
+import {
+  BRIEF_MAX,
+  BRIEF_MIN,
+  firstInvalid,
+  TITLE_MAX,
+  validateBasics,
+  validateRequirements,
+  validateRewards,
+  type BasicsField,
+  type CampaignField,
+  type FieldErrors,
+  type RequirementsField,
+  type RewardsField,
+} from './campaignValidation';
 import {
   useCampaignCategories,
   useCreateCampaign,
@@ -111,20 +125,58 @@ export function CreateCampaignScreen() {
   const confirm = useConfirm();
 
   const selectedCategory = categories.data?.find((category) => category.id === categoryId);
-  // The end must come after the start (today when no start date is chosen).
-  const scheduleValid = !endDate || endDate > (startDate || new Date().toISOString().slice(0, 10));
-  const basicsValid = title.trim().length > 2 && Boolean(categoryId) && Boolean(endDate) && scheduleValid;
-  // The per-creator maximum is optional (empty = no cap) but can never exceed the whole budget.
-  const capValid = dollarsToMoney(maxPerCreator).minorUnits <= dollarsToMoney(budget).minorUnits;
-  const rewardsValid =
-    dollarsToMoney(budget).minorUnits > 0 && dollarsToMoney(reward).minorUnits > 0 && platforms.length > 0 && capValid;
-  const requirementsValid = brief.trim().length > 10;
+  // Each step's button stays enabled. Clicking it checks the step: problems show under
+  // their fields and the first one is scrolled to and focused. Before that, a field shows
+  // its problem only once the brand has left it (or picked a value).
+  const [checkedSteps, setCheckedSteps] = useState<Record<1 | 2 | 3, boolean>>({ 1: false, 2: false, 3: false });
+  const [touched, setTouched] = useState<Partial<Record<CampaignField, boolean>>>({});
+  const touch = (field: CampaignField) => setTouched((current) => ({ ...current, [field]: true }));
+
+  const basicsErrors = validateBasics({
+    hasCategory: Boolean(categoryId),
+    startDate: startDate ? localDay(startDate) : null,
+    endDate: endDate ? localDay(endDate) : null,
+    title,
+  });
+  const rewardsErrors = validateRewards({
+    budget: dollarsToMoney(budget),
+    reward: dollarsToMoney(reward),
+    maxPerCreator: dollarsToMoney(maxPerCreator),
+    platformCount: platforms.length,
+    perItem: rewardType === 'per_item',
+  });
+  const requirementsErrors = validateRequirements({ brief, references });
+
+  function shown<TField extends CampaignField>(step: 1 | 2 | 3, errors: FieldErrors<TField>): FieldErrors<TField> {
+    if (checkedSteps[step]) return errors;
+    return Object.fromEntries(
+      Object.entries(errors).filter(([field]) => touched[field as CampaignField]),
+    ) as FieldErrors<TField>;
+  }
+
+  /** Moves on when the step is complete; otherwise shows what is missing and goes to it. */
+  function continueFrom<TField extends CampaignField>(step: 1 | 2 | 3, errors: FieldErrors<TField>, next: WizardStep) {
+    const field = firstInvalid(errors);
+    if (!field) {
+      goToStep(next);
+      return;
+    }
+    setCheckedSteps((current) => ({ ...current, [step]: true }));
+    const element = document.getElementById(fieldId(field));
+    element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    element?.focus({ preventScroll: true });
+  }
+
+  function goToStep(next: WizardStep) {
+    setStep(next);
+    window.scrollTo({ top: 0 });
+  }
 
   function goBack() {
     if (step === 1) router.back();
-    else if (step === 2) setStep(1);
-    else if (step === 3) setStep(2);
-    else setStep(3);
+    else if (step === 2) goToStep(1);
+    else if (step === 3) goToStep(2);
+    else goToStep(3);
   }
 
   /** Copies an AI draft into the requirements, asking first when it would replace text. */
@@ -227,7 +279,7 @@ export function CreateCampaignScreen() {
           references={references}
           loading={createCampaign.isPending}
           error={createCampaign.error instanceof Error ? createCampaign.error.message : null}
-          onEdit={setStep}
+          onEdit={goToStep}
           onContinue={() => void createDraft()}
         />
       ) : (
@@ -242,20 +294,20 @@ export function CreateCampaignScreen() {
               categoriesLoading={categories.isPending}
               startDate={startDate}
               endDate={endDate}
-              scheduleValid={scheduleValid}
               onStartDateChange={setStartDate}
               title={title}
               cover={cover}
               coverError={coverError}
               onCampaignTypeChange={setCampaignType}
               onVisibilityChange={setVisibility}
-              onCategoryChange={setCategoryId}
-              onEndDateChange={setEndDate}
+              onCategoryChange={(value) => { setCategoryId(value); touch('category'); }}
+              onEndDateChange={(value) => { setEndDate(value); touch('endDate'); }}
               onTitleChange={setTitle}
+              onTitleBlur={() => touch('title')}
+              errors={shown(1, basicsErrors)}
               onCoverChange={(image) => { setCoverError(null); setCover(image); }}
               onCoverError={setCoverError}
-              onContinue={() => setStep(2)}
-              valid={basicsValid}
+              onContinue={() => continueFrom(1, basicsErrors, 2)}
             />
           ) : step === 2 ? (
             <RewardsStep
@@ -265,13 +317,14 @@ export function CreateCampaignScreen() {
               onRewardTypeChange={setRewardType}
               platforms={platforms}
               maxPerCreator={maxPerCreator}
-              capValid={capValid}
               onBudgetChange={setBudget}
               onRewardChange={setReward}
-              onPlatformsChange={setPlatforms}
-              onMaxPerCreatorChange={setMaxPerCreator}
-              onContinue={() => setStep(3)}
-              valid={rewardsValid}
+              onPlatformsChange={(value) => { setPlatforms(value); touch('platforms'); }}
+              // Over the budget is a clash, not a gap: it shows as soon as it happens.
+              onMaxPerCreatorChange={(value) => { setMaxPerCreator(value); touch('maxPerCreator'); }}
+              onBlurField={touch}
+              errors={shown(2, rewardsErrors)}
+              onContinue={() => continueFrom(2, rewardsErrors, 3)}
             />
           ) : (
             <RequirementsStep
@@ -296,8 +349,9 @@ export function CreateCampaignScreen() {
               onRuleAdd={addRule}
               onRuleRemove={(rule) => setContentRules((current) => current.filter((entry) => entry !== rule))}
               onReferencesChange={setReferences}
-              onContinue={() => setStep('review')}
-              valid={requirementsValid}
+              onBlurField={touch}
+              errors={shown(3, requirementsErrors)}
+              onContinue={() => continueFrom(3, requirementsErrors, 'review')}
               onDraftWithAi={() => setAiBriefOpen(true)}
             />
           )}
@@ -343,7 +397,6 @@ interface BasicsProps {
   categoriesLoading: boolean;
   startDate: string;
   endDate: string;
-  scheduleValid: boolean;
   onStartDateChange: (value: string) => void;
   title: string;
   cover: PickedImage | null;
@@ -353,10 +406,11 @@ interface BasicsProps {
   onCategoryChange: (value: string) => void;
   onEndDateChange: (value: string) => void;
   onTitleChange: (value: string) => void;
+  onTitleBlur: () => void;
+  errors: FieldErrors<BasicsField>;
   onCoverChange: (value: PickedImage | null) => void;
   onCoverError: (message: string) => void;
   onContinue: () => void;
-  valid: boolean;
 }
 
 function BasicsStep(props: BasicsProps) {
@@ -389,13 +443,22 @@ function BasicsStep(props: BasicsProps) {
         <SegmentedToggle options={VISIBILITY_OPTIONS} value={props.visibility} onChange={props.onVisibilityChange} ariaLabel="Who can join this campaign" />
         <p className="text-xs text-text-muted">{VISIBILITY_HINT[props.visibility]}</p>
       </div>
-      <label className="flex flex-col gap-1.5 text-[13px] font-medium text-text-muted">
-        Campaign Category
-        <select value={props.categoryId} onChange={(event) => props.onCategoryChange(event.target.value)} className="h-12 rounded-xl border border-border bg-surface-raised px-4 text-[15px] text-text">
-          <option value="">{props.categoriesLoading ? 'Loading categories…' : 'Select category'}</option>
-          {props.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-        </select>
-      </label>
+      <div className="flex flex-col gap-1.5">
+        <label className="flex flex-col gap-1.5 text-[13px] font-medium text-text-muted">
+          Campaign Category
+          <select
+            id={fieldId('category')}
+            value={props.categoryId}
+            onChange={(event) => props.onCategoryChange(event.target.value)}
+            aria-invalid={props.errors.category ? true : undefined}
+            className={cn('h-12 rounded-xl border bg-surface-raised px-4 text-[15px] text-text', props.errors.category ? 'border-danger' : 'border-border')}
+          >
+            <option value="">{props.categoriesLoading ? 'Loading categories…' : 'Select category'}</option>
+            {props.categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+        </label>
+        <FieldError>{props.errors.category}</FieldError>
+      </div>
       <Field label="Campaign Start Date (optional — starts today if empty)" type="date" min={new Date().toISOString().slice(0, 10)} value={props.startDate} onChange={(event) => props.onStartDateChange(event.target.value)} />
       <Field
         label="Campaign End Date"
@@ -403,15 +466,25 @@ function BasicsStep(props: BasicsProps) {
         min={props.startDate || new Date().toISOString().slice(0, 10)}
         value={props.endDate}
         onChange={(event) => props.onEndDateChange(event.target.value)}
-        error={props.scheduleValid ? undefined : 'The end date must be after the start date.'}
+        id={fieldId('endDate')}
+        error={props.errors.endDate}
       />
-      <Field label="Campaign Title" placeholder="e.g. Summer Skincare Launch" value={props.title} onChange={(event) => props.onTitleChange(event.target.value)} />
+      <Field
+        id={fieldId('title')}
+        label="Campaign Title"
+        placeholder="e.g. Summer Skincare Launch"
+        maxLength={TITLE_MAX}
+        value={props.title}
+        onChange={(event) => props.onTitleChange(event.target.value)}
+        onBlur={props.onTitleBlur}
+        error={props.errors.title}
+      />
       <div className="flex flex-col gap-2">
         <p className="text-[13px] font-medium text-text-muted">Cover Image</p>
         <ImageUpload value={props.cover} onChange={props.onCoverChange} onError={props.onCoverError} label="Upload cover image" height={180} />
       </div>
       {props.coverError ? <p className="text-xs text-danger">{props.coverError}</p> : null}
-      <Button disabled={!props.valid} onClick={props.onContinue}>Next Step</Button>
+      <Button onClick={props.onContinue}>Next Step</Button>
     </div>
   );
 }
@@ -423,38 +496,40 @@ interface RewardsProps {
   onRewardTypeChange: (value: RewardType) => void;
   platforms: SocialPlatform[];
   maxPerCreator: string;
-  capValid: boolean;
   onBudgetChange: (value: string) => void;
   onRewardChange: (value: string) => void;
   onPlatformsChange: (value: SocialPlatform[]) => void;
   onMaxPerCreatorChange: (value: string) => void;
+  onBlurField: (field: RewardsField) => void;
+  errors: FieldErrors<RewardsField>;
   onContinue: () => void;
-  valid: boolean;
 }
 
 function RewardsStep(props: RewardsProps) {
   return (
     <div className="flex flex-col gap-5">
       <StepHeading title="Reward & Platforms" subtitle="Set your budget and where creators should post." />
-      <Field label="Total Reward Budget" inputMode="decimal" placeholder="0.00" value={props.budget} onChange={(event) => props.onBudgetChange(event.target.value)} />
+      <Field id={fieldId('budget')} label="Total Reward Budget" inputMode="decimal" placeholder="0.00" value={props.budget} onChange={(event) => props.onBudgetChange(event.target.value)} onBlur={() => props.onBlurField('budget')} error={props.errors.budget} />
       <div className="flex flex-col gap-2">
         <p className="text-[13px] font-medium text-text-muted">How creators are paid</p>
         <SegmentedToggle options={REWARD_TYPE_OPTIONS} value={props.rewardType} onChange={props.onRewardTypeChange} ariaLabel="How creators are paid" />
         <p className="text-xs text-text-muted">{REWARD_TYPE_HINT[props.rewardType]}</p>
       </div>
-      <Field label={props.rewardType === 'per_item' ? 'Reward Per Approved Post' : 'Reward Per 1,000 Views'} inputMode="decimal" placeholder="0.00" value={props.reward} onChange={(event) => props.onRewardChange(event.target.value)} />
+      <Field label={props.rewardType === 'per_item' ? 'Reward Per Approved Post' : 'Reward Per 1,000 Views'} inputMode="decimal" placeholder="0.00" value={props.reward} onChange={(event) => props.onRewardChange(event.target.value)} onBlur={() => props.onBlurField('reward')} error={props.errors.reward} id={fieldId('reward')} />
       <div className="flex flex-col gap-1.5">
-        <Field label="Maximum Reward Per Creator (optional)" inputMode="decimal" placeholder="0.00" value={props.maxPerCreator} onChange={(event) => props.onMaxPerCreatorChange(event.target.value)} />
-        <p className={props.capValid ? 'text-xs text-text-muted' : 'text-xs text-danger'}>
-          {props.capValid ? 'The most one creator can earn from this campaign. Leave empty for no limit.' : 'This cannot be more than the total budget.'}
-        </p>
+        <Field id={fieldId('maxPerCreator')} label="Maximum Reward Per Creator (optional)" inputMode="decimal" placeholder="0.00" value={props.maxPerCreator} onChange={(event) => props.onMaxPerCreatorChange(event.target.value)} error={props.errors.maxPerCreator} />
+        {props.errors.maxPerCreator ? null : (
+          <p className="text-xs text-text-muted">The most one creator can earn from this campaign. Leave empty for no limit.</p>
+        )}
       </div>
-      <div className="flex flex-col gap-2">
+      <div id={fieldId('platforms')} tabIndex={-1} className="flex flex-col gap-2 outline-none">
         <p className="text-[13px] font-medium text-text-muted">Platforms</p>
         <MultiChoiceChips choices={PLATFORMS} value={props.platforms} onChange={props.onPlatformsChange} accessibilityLabel="Platforms" />
-        <p className="text-xs text-text-muted">Select every platform creators can post on.</p>
+        <p role={props.errors.platforms ? 'alert' : undefined} className={cn('text-xs', props.errors.platforms ? 'text-danger' : 'text-text-muted')}>
+          {props.errors.platforms ?? 'Select every platform creators can post on.'}
+        </p>
       </div>
-      <Button disabled={!props.valid} onClick={props.onContinue}>Next Step</Button>
+      <Button onClick={props.onContinue}>Next Step</Button>
     </div>
   );
 }
@@ -481,8 +556,9 @@ interface RequirementsProps {
   onRuleAdd: () => void;
   onRuleRemove: (rule: string) => void;
   onReferencesChange: (value: string) => void;
+  onBlurField: (field: RequirementsField) => void;
+  errors: FieldErrors<RequirementsField>;
   onContinue: () => void;
-  valid: boolean;
   onDraftWithAi: () => void;
 }
 
@@ -502,7 +578,19 @@ function RequirementsStep(props: RequirementsProps) {
           <Sparkles className="size-4" aria-hidden /> Draft with AI
         </Button>
       </div>
-      <Textarea label="Campaign Brief" placeholder="Describe what creators should make…" value={props.brief} onChange={(event) => props.onBriefChange(event.target.value)} />
+      <div className="flex flex-col gap-1.5">
+        <Textarea
+          id={fieldId('brief')}
+          label="Campaign Brief"
+          placeholder="Describe what creators should make…"
+          maxLength={BRIEF_MAX}
+          value={props.brief}
+          onChange={(event) => props.onBriefChange(event.target.value)}
+          onBlur={() => props.onBlurField('brief')}
+          error={props.errors.brief}
+        />
+        {props.errors.brief ? null : <BriefLength brief={props.brief} />}
+      </div>
       <Textarea label="Campaign Goals (Optional)" placeholder="e.g. Drive awareness of the summer range" maxLength={2000} value={props.goals} onChange={(event) => props.onGoalsChange(event.target.value)} />
       <AudienceFields value={props.audience} onChange={props.onAudienceChange} />
       <div className="flex flex-col gap-2">
@@ -520,11 +608,43 @@ function RequirementsStep(props: RequirementsProps) {
       </div>
       <TagsField label="Required Hashtags" prefix="#" placeholder="#GlowWithNimbus" tags={props.hashtags} draft={props.hashtagDraft} onTagsChange={props.onHashtagsChange} onDraftChange={props.onHashtagDraftChange} />
       <TagsField label="Required Mentions" prefix="@" placeholder="@glowbeauty" tags={props.mentions} draft={props.mentionDraft} onTagsChange={props.onMentionsChange} onDraftChange={props.onMentionDraftChange} />
-      <Textarea label="Reference Materials (Optional)" placeholder={'https://…/product-shots.zip\nhttps://…/demo-video.mp4'} value={props.references} onChange={(event) => props.onReferencesChange(event.target.value)} />
+      <Textarea
+        id={fieldId('references')}
+        label="Reference Materials (Optional)"
+        placeholder={'https://…/product-shots.zip\nhttps://…/demo-video.mp4'}
+        value={props.references}
+        onChange={(event) => props.onReferencesChange(event.target.value)}
+        onBlur={() => props.onBlurField('references')}
+        error={props.errors.references}
+      />
       <p className="-mt-3 text-xs text-text-muted">Paste links to videos, images, or files creators should use — one per line.</p>
-      <Button disabled={!props.valid} onClick={props.onContinue}>Review Campaign</Button>
+      <Button onClick={props.onContinue}>Review Campaign</Button>
     </div>
   );
+}
+
+/** The brief's length against its minimum, so the rule is known before it is broken. */
+function BriefLength({ brief }: { brief: string }) {
+  const length = brief.trim().length;
+  return (
+    <p className="text-xs text-text-tertiary">
+      {length < BRIEF_MIN ? `At least ${BRIEF_MIN} characters · ${length} so far` : `${length.toLocaleString('en')} characters`}
+    </p>
+  );
+}
+
+function FieldError({ children }: { children?: ReactNode }) {
+  return children ? <span className="text-xs text-danger">{children}</span> : null;
+}
+
+/** The element id of a form field, for scrolling to it and focusing it. */
+function fieldId(field: CampaignField): string {
+  return `campaign-${field}`;
+}
+
+/** A yyyy-mm-dd date input value as local midnight. */
+function localDay(value: string): Date {
+  return new Date(`${value}T00:00:00`);
 }
 
 interface TagsFieldProps {
