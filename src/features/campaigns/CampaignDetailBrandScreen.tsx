@@ -306,10 +306,10 @@ function EarningsReviews({
 function SubmissionRow({ submission, campaignId }: { submission: Submission; campaignId: string }) {
   const status = SUBMISSION_STATUS[submission.status];
   const name = submission.creatorName ?? submission.creatorHandle;
+  const platforms = submission.posts.map((post) => platformLabel(post.platform)).join(' · ');
+  // Posts first; a video that came with them is mentioned after (older ones had only a video).
   const where =
-    submission.kind === 'upload'
-      ? 'Uploaded video'
-      : submission.posts.map((post) => platformLabel(post.platform)).join(' · ');
+    submission.kind === 'upload' ? [platforms, 'Uploaded video'].filter(Boolean).join(' · ') : platforms;
   const attention =
     submission.status === 'approved' && submission.earningsPaused
       ? 'Earnings paused'

@@ -1,5 +1,7 @@
 import type { Money } from '../money/money';
 import type {
+  ApprovalOutcome,
+  PayoutPreview,
   PlanChange,
   FundFromWalletInput,
   WalletTopUp,
@@ -136,6 +138,12 @@ export interface ZeyooApi {
   // Submissions
   getCampaignSubmissions(campaignId: string): Promise<Submission[]>;
   reviewSubmission(input: ReviewSubmissionInput): Promise<Submission>;
+  /** Current views on every channel and what approving would pay now. */
+  getPayoutPreview(submissionId: string): Promise<PayoutPreview>;
+  /** Approves and pays the creator for the views so far. */
+  approveSubmission(submissionId: string): Promise<ApprovalOutcome>;
+  /** Pays an approved creator for views gained since they were last paid. */
+  payForNewViews(submissionId: string): Promise<ApprovalOutcome>;
   deleteAccount(): Promise<void>;
   /** Every version of a submission and every review decision on it. */
   getSubmissionHistory(submissionId: string): Promise<SubmissionHistory>;

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Clapperboard, Clock, Scissors, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Check, Clapperboard, Clock, Pencil, Scissors, Sparkles, X } from 'lucide-react';
 
 import {
   Button,
@@ -734,33 +734,60 @@ interface ReviewProps {
   onContinue: () => void;
 }
 
+/**
+ * The last step before funding: everything the brand entered, one card per wizard step.
+ * Short facts (dates, money) sit beside their label; anything that can run long (title,
+ * brief, goals, rules, tags, links) gets the full width under its label, so long text
+ * wraps cleanly instead of squeezing into a narrow right-hand column.
+ */
 function ReviewStep(props: ReviewProps) {
+  const goals = props.goals.trim();
+  const audience = props.audience.trim();
+  const hashtags = props.hashtags.split(/\s+/).filter(Boolean);
+  const mentions = props.mentions.split(/\s+/).filter(Boolean);
+  const references = parseReferences(props.references);
   return (
     <div className="flex flex-col gap-5">
       <StepHeading title="Review Campaign" subtitle="Make sure everything looks right before publishing." />
-      <ReviewSection title="Campaign Basics" onEdit={() => props.onEdit(1)} rows={[
-        ['Campaign Title', props.title],
-        ['Campaign Type', props.campaignType === 'ugc' ? 'UGC' : 'Clipping'],
-        ['Visibility', props.visibility === 'public' ? 'Public' : 'Invite only'],
-        ['Category', props.category],
-        ['Start Date', props.startDate ? formatDateDMY(props.startDate) : 'Today'],
-        ['End Date', formatDateDMY(props.endDate)],
-      ]} />
-      <ReviewSection title="Reward & Platforms" onEdit={() => props.onEdit(2)} rows={[
-        ['Total Budget', formatMoney(props.budget)],
-        ['Reward', formatCampaignReward({ rewardType: props.rewardType, ratePerThousandViews: props.reward })],
-        ['Max Per Creator', props.maxPerCreator.minorUnits > 0 ? formatMoney(props.maxPerCreator) : 'No limit'],
-        ['Platforms', platformsLabel(props.platforms)],
-      ]} />
-      <ReviewSection title="Content Requirements" onEdit={() => props.onEdit(3)} rows={[
-        ['Brief', props.brief],
-        ['Goals', props.goals.trim() || '—'],
-        ['Audience', props.audience.trim() || '—'],
-        ['Content Rules', props.contentRules.join(' • ') || '—'],
-        ['Hashtags', props.hashtags || '—'],
-        ['Mentions', props.mentions || '—'],
-        ['Reference Materials', props.references.trim() ? `${parseReferences(props.references).length} link(s)` : '—'],
-      ]} />
+      <ReviewSection title="Campaign Basics" onEdit={() => props.onEdit(1)}>
+        <ReviewBlock label="Campaign Title"><p className="text-[15px] text-text">{props.title.trim()}</p></ReviewBlock>
+        <ReviewRow label="Campaign Type" value={props.campaignType === 'ugc' ? 'UGC' : 'Clipping'} />
+        <ReviewRow label="Visibility" value={props.visibility === 'public' ? 'Public' : 'Invite only'} />
+        <ReviewRow label="Category" value={props.category} />
+        <ReviewRow label="Start Date" value={props.startDate ? formatDateDMY(props.startDate) : 'Today'} />
+        <ReviewRow label="End Date" value={formatDateDMY(props.endDate)} />
+      </ReviewSection>
+      <ReviewSection title="Reward & Platforms" onEdit={() => props.onEdit(2)}>
+        <ReviewRow label="Total Budget" value={formatMoney(props.budget)} />
+        <ReviewRow label="Reward" value={formatCampaignReward({ rewardType: props.rewardType, ratePerThousandViews: props.reward })} />
+        <ReviewRow label="Max Per Creator" value={props.maxPerCreator.minorUnits > 0 ? formatMoney(props.maxPerCreator) : 'No limit'} />
+        <ReviewBlock label="Platforms"><Chips items={props.platforms.map(platformLabel)} /></ReviewBlock>
+      </ReviewSection>
+      <ReviewSection title="Content Requirements" onEdit={() => props.onEdit(3)}>
+        <ReviewBlock label="Campaign Brief"><FoldingText text={props.brief.trim()} /></ReviewBlock>
+        {goals ? <ReviewBlock label="Goals"><p className="whitespace-pre-line text-sm text-text">{goals}</p></ReviewBlock> : null}
+        {audience ? <ReviewRow label="Audience" value={audience} /> : null}
+        {props.contentRules.length ? (
+          <ReviewBlock label={`Content Rules (${props.contentRules.length})`}>
+            <ol className="flex list-decimal flex-col gap-1.5 ps-5 text-sm text-text marker:text-text-muted">
+              {props.contentRules.map((rule, index) => <li key={`${index}-${rule}`}>{rule}</li>)}
+            </ol>
+          </ReviewBlock>
+        ) : null}
+        {hashtags.length ? <ReviewBlock label="Hashtags"><Chips items={hashtags} /></ReviewBlock> : null}
+        {mentions.length ? <ReviewBlock label="Mentions"><Chips items={mentions} /></ReviewBlock> : null}
+        {references.length ? (
+          <ReviewBlock label={`Reference Materials (${references.length})`}>
+            <ul className="flex flex-col gap-1.5">
+              {references.map((reference) => (
+                <li key={reference.id} className="min-w-0">
+                  <a href={reference.url} target="_blank" rel="noreferrer" title={reference.url} className="block truncate text-sm text-green-text hover:underline">{reference.name}</a>
+                </li>
+              ))}
+            </ul>
+          </ReviewBlock>
+        ) : null}
+      </ReviewSection>
       <Card className="bg-primary/10 text-sm">Your wallet will only be charged when you fund and launch this campaign.</Card>
       {props.error ? <p className="text-xs text-danger">{props.error}</p> : null}
       <Button loading={props.loading} onClick={props.onContinue}>Continue to Funding</Button>
@@ -768,22 +795,81 @@ function ReviewStep(props: ReviewProps) {
   );
 }
 
-function ReviewSection({ title, rows, onEdit }: { title: string; rows: [string, string][]; onEdit: () => void }) {
+/** One wizard step's answers in a card, with a way back to change them. */
+function ReviewSection({ title, onEdit, children }: { title: string; onEdit: () => void; children: ReactNode }) {
   return (
     <Card>
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-1 flex items-center justify-between gap-3">
         <h2 className="font-display text-lg font-semibold">{title}</h2>
-        <button type="button" onClick={onEdit} className="text-sm font-medium text-green-text">Edit</button>
+        <button
+          type="button"
+          onClick={onEdit}
+          aria-label={`Edit ${title}`}
+          className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-green-text hover:bg-primary/20"
+        >
+          <Pencil className="size-3.5" aria-hidden /> Edit
+        </button>
       </div>
-      <dl className="flex flex-col gap-3">
-        {rows.map(([label, value]) => (
-          <div key={label} className="flex justify-between gap-6 border-b border-border pb-3 last:border-0 last:pb-0">
-            <dt className="text-sm text-text-muted">{label}</dt>
-            <dd className="max-w-[65%] text-right text-sm text-text">{value}</dd>
-          </div>
-        ))}
-      </dl>
+      <dl className="flex flex-col divide-y divide-border [&>*]:py-3 [&>*:last-child]:pb-0">{children}</dl>
     </Card>
+  );
+}
+
+/** A short fact beside its label; the value wraps rather than running past the edge. */
+function ReviewRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-6">
+      <dt className="shrink-0 text-sm text-text-muted">{label}</dt>
+      <dd className="min-w-0 break-words text-right text-sm text-text">{value}</dd>
+    </div>
+  );
+}
+
+/** Anything that can run long: the label above, the content across the full width. */
+function ReviewBlock({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <dt className="text-xs text-text-muted">{label}</dt>
+      <dd className="min-w-0 break-words">{children}</dd>
+    </div>
+  );
+}
+
+/** Long text shown in part (six lines), with a toggle to read all of it. */
+function FoldingText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [foldable, setFoldable] = useState(false);
+  const textRef = useRef<HTMLParagraphElement>(null);
+  // Re-measured whenever the width changes: a brief that fits on a wide screen may need
+  // folding on a narrow one.
+  useEffect(() => {
+    const element = textRef.current;
+    if (!element || expanded) return;
+    const check = () => setFoldable(element.scrollHeight > element.clientHeight + 1);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [expanded, text]);
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p ref={textRef} className={cn('whitespace-pre-line text-sm text-text', expanded ? '' : 'line-clamp-6')}>{text}</p>
+      {foldable || expanded ? (
+        <button type="button" onClick={() => setExpanded((current) => !current)} className="self-start text-sm font-medium text-green-text hover:underline">
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function Chips({ items }: { items: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((item) => (
+        <span key={item} className="max-w-full break-all rounded-full bg-surface-raised px-2.5 py-1 text-xs font-medium text-text-muted">{item}</span>
+      ))}
+    </div>
   );
 }
 

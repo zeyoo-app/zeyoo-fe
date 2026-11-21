@@ -12,6 +12,7 @@ export const queryKeys = {
   submission: (submissionId: string) => ['submissions', submissionId] as const,
   submissionHistory: (submissionId: string) => ['submissions', submissionId, 'history'] as const,
   submissionViews: (submissionId: string) => ['submissions', submissionId, 'views'] as const,
+  payoutPreview: (submissionId: string) => ['submissions', submissionId, 'payout-preview'] as const,
   discoverCampaigns: ['discover', 'campaigns'] as const,
   mySubmissions: ['creator', 'submissions'] as const,
   myApplications: ['creator', 'applications'] as const,

@@ -40,6 +40,43 @@ export function useSubmissionViews(submissionId: string, enabled = true) {
   });
 }
 
+/** Current views on every channel and what approving would pay, while a submission is pending. */
+export function usePayoutPreview(submissionId: string, enabled = true) {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.payoutPreview(submissionId),
+    queryFn: () => api.getPayoutPreview(submissionId),
+    enabled,
+  });
+}
+
+/** Approve and pay the creator for the views so far, then refresh everything that shows it. */
+export function useApproveSubmission(campaignId: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (submissionId: string) => api.approveSubmission(submissionId),
+    onSettled: (_data, _error, submissionId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaignSubmissions(campaignId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.submission(submissionId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.submissionViews(submissionId) });
+    },
+  });
+}
+
+/** Pay an approved creator for views gained since their last payment, then refresh. */
+export function usePayForNewViews(campaignId: string) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (submissionId: string) => api.payForNewViews(submissionId),
+    onSettled: (_data, _error, submissionId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaignSubmissions(campaignId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.submission(submissionId) });
+    },
+  });
+}
+
 /** Approve/reject a submission, then refresh the campaign's review list and its history. */
 export function useReviewSubmission(campaignId: string) {
   const api = useApi();

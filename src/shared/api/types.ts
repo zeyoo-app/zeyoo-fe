@@ -281,6 +281,48 @@ export interface PostViews {
   capturedAt?: string;
 }
 
+/** One channel's views as the brand sees them before approving. */
+export interface PreviewPost {
+  platform: PostPlatform;
+  url?: string;
+  /** Null when the platform couldn't be read and nothing was recorded before. */
+  views: number | null;
+  /** 'live' was read just now; otherwise how the last recorded count got in. */
+  source: 'live' | 'platform' | 'manual' | null;
+  capturedAt?: string;
+  /** Why the platform couldn't be read live, when it couldn't. */
+  unavailableMessage?: string;
+}
+
+/** What approving would pay now, worked out exactly as the payout itself. */
+export interface PayoutQuote {
+  rewardType: 'per_view' | 'fixed';
+  /** Per 1,000 views, or per approved post for a fixed reward. */
+  reward: Money;
+  views: number;
+  entitled: Money;
+  alreadyPaid: Money;
+  payNow: Money;
+  /** The most one creator may earn; null when there is no limit. */
+  cap: Money | null;
+  budgetRemaining: Money;
+  limitedBy: 'cap' | 'budget' | null;
+  paused: boolean;
+}
+
+export interface PayoutPreview {
+  posts: PreviewPost[];
+  totalViews: number;
+  quote: PayoutQuote;
+}
+
+export interface ApprovalOutcome {
+  paidNow: Money;
+  views: number;
+  /** Approved, but paying failed; the next views sync pays it. */
+  payoutDeferred: boolean;
+}
+
 export type ReviewDecision = 'approve' | 'reject' | 'request_changes';
 
 export interface ReviewSubmissionInput {
@@ -307,10 +349,13 @@ export interface ViewTrackingOutcome {
   message?: string;
 }
 
-/** A link submission sends `posts`; an upload sends the video's `videoUrl`. */
+/**
+ * Every submission sends links to its published `posts`, which are what the brand
+ * reviews and pays on. An upload also sends the original video's `videoUrl`.
+ */
 export type SubmissionContent =
   | { kind: 'link'; posts: SubmissionPost[] }
-  | { kind: 'upload'; videoUrl: string };
+  | { kind: 'upload'; posts: SubmissionPost[]; videoUrl: string };
 
 export type ResubmitInput = SubmissionContent & { submissionId: string };
 
