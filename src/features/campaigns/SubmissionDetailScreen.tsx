@@ -169,33 +169,34 @@ function SubmissionDetail({
       ) : null}
 
       <section>
-        <h2 className="mb-3 font-display text-lg font-semibold text-text">
-          {submission.kind === 'upload' ? 'Content' : 'Posts'}
-        </h2>
+        <h2 className="mb-3 font-display text-lg font-semibold text-text">Posts</h2>
         <Card className="flex flex-col divide-y divide-border p-0">
+          {submission.posts.map((post) => (
+            <PostRow
+              key={post.platform}
+              post={post}
+              verified={submission.verifiedPlatforms?.includes(post.platform) ?? false}
+              reading={readings.find((reading) => reading.platform === post.platform)}
+              showViews={submission.status === 'approved'}
+            />
+          ))}
           {submission.kind === 'upload' ? (
-            <div className="p-4">
-              <a
-                href={submission.postUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-medium text-green-text hover:underline"
+            // The original file that came with the posts. Older submissions sent only a
+            // video, so their typed-in views are shown here.
+            <div className="flex flex-col gap-2 p-4">
+              <p className="text-[13px] font-medium text-text-muted">Original video</p>
+              <video
+                src={submission.postUrl}
+                controls
+                playsInline
+                preload="metadata"
+                className="max-h-[520px] w-full rounded-xl bg-black object-contain"
               >
-                ▶ Watch uploaded video
-              </a>
-              {readings[0] ? <ReadingLine reading={readings[0]} /> : null}
+                <a href={submission.postUrl} className="text-sm text-green-text">Download the video</a>
+              </video>
+              {submission.posts.length === 0 && readings[0] ? <ReadingLine reading={readings[0]} /> : null}
             </div>
-          ) : (
-            submission.posts.map((post) => (
-              <PostRow
-                key={post.platform}
-                post={post}
-                verified={submission.verifiedPlatforms?.includes(post.platform) ?? false}
-                reading={readings.find((reading) => reading.platform === post.platform)}
-                showViews={submission.status === 'approved'}
-              />
-            ))
-          )}
+          ) : null}
           {submission.note ? (
             <div className="flex flex-col gap-1 p-4">
               <p className="text-xs uppercase tracking-wide text-text-tertiary">Note from the creator</p>
@@ -506,10 +507,12 @@ function Timeline({ history }: { history?: SubmissionHistory }) {
     ...history.revisions.map((revision, index) => ({
       at: revision.createdAt,
       title: index === 0 ? 'Submitted' : 'Revision sent',
-      detail:
-        revision.kind === 'upload'
-          ? 'Uploaded a video'
-          : revision.posts.map((post) => platformLabel(post.platform)).join(', '),
+      detail: [
+        revision.posts.map((post) => platformLabel(post.platform)).join(', '),
+        revision.kind === 'upload' ? 'Uploaded a video' : '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
       note: revision.note,
     })),
     ...history.reviews.map((entry) => ({

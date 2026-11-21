@@ -307,10 +307,13 @@ export interface ViewTrackingOutcome {
   message?: string;
 }
 
-/** A link submission sends `posts`; an upload sends the video's `videoUrl`. */
+/**
+ * Every submission sends links to its published `posts`, which are what the brand
+ * reviews and pays on. An upload also sends the original video's `videoUrl`.
+ */
 export type SubmissionContent =
   | { kind: 'link'; posts: SubmissionPost[] }
-  | { kind: 'upload'; videoUrl: string };
+  | { kind: 'upload'; posts: SubmissionPost[]; videoUrl: string };
 
 export type ResubmitInput = SubmissionContent & { submissionId: string };
 

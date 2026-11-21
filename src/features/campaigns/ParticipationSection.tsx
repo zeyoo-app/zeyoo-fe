@@ -4,10 +4,10 @@ import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-import { Badge, Button, Card, Field, SegmentedToggle } from '@/design-system';
+import { Badge, Button, Card, Field } from '@/design-system';
 import { useApi } from '@/shared/api';
 import { uploadVideo } from '@/shared/media/videoUpload';
-import type { Campaign, CreatorSubmission, PostPlatform, SubmissionKind } from '@/shared/api';
+import type { Campaign, CreatorSubmission, PostPlatform } from '@/shared/api';
 import { platformLabel } from '@/shared/format/platform';
 import { POST_LINK_PLACEHOLDERS, postLinkProblem } from '@/shared/format/postLinks';
 
@@ -18,11 +18,6 @@ import {
   useResubmit,
   useSubmitParticipation,
 } from '../submissions/hooks';
-
-const KIND_OPTIONS: { value: SubmissionKind; label: string }[] = [
-  { value: 'link', label: 'Paste links' },
-  { value: 'upload', label: 'Upload video' },
-];
 
 const SUBMISSION_STATUS: Record<CreatorSubmission['status'], { label: string; tone: 'warning' | 'success' | 'danger' | 'neutral' }> = {
   pending: { label: 'Pending review', tone: 'neutral' },
@@ -122,9 +117,12 @@ function SubmittedCard({ campaign, submission }: { campaign: Campaign; submissio
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="text-sm text-text-muted">Uploaded video</p>
-      )}
+      ) : null}
+      {submission.kind === 'upload' ? (
+        <p className="text-sm text-text-muted">
+          {submission.posts.length > 0 ? '+ Original video attached' : 'Uploaded video'}
+        </p>
+      ) : null}
       {submission.status === 'needs_changes' ? (
         <>
           <p className="text-sm text-warning">
@@ -148,7 +146,9 @@ function campaignPlatforms(campaign: Campaign): PostPlatform[] {
 
 /**
  * A new submission, or — with `revisionOf` — the revised content after changes were
- * requested. Links go one per campaign platform; at least one is needed.
+ * requested. Links go one per campaign platform; at least one is needed, since the
+ * posts are what get reviewed, tracked for views and paid. The original video can be
+ * added too, as an extra for the brand.
  */
 function SubmitForm({
   campaign,
@@ -170,12 +170,12 @@ function SubmitForm({
   const submit = useSubmitParticipation();
   const resubmit = useResubmit();
   const platforms = campaignPlatforms(campaign);
-  const [kind, setKind] = useState<SubmissionKind>(revisionOf?.kind ?? 'link');
   // A revision starts from the links the creator sent last time.
   const [links, setLinks] = useState<Partial<Record<PostPlatform, string>>>(() =>
     Object.fromEntries((revisionOf?.posts ?? []).map((post) => [post.platform, post.url])),
   );
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const pending = submit.isPending || resubmit.isPending;
   const error = submit.error ?? resubmit.error;
 
@@ -183,17 +183,15 @@ function SubmitForm({
     .map((platform) => ({ platform, url: (links[platform] ?? '').trim() }))
     .filter((post) => post.url.length > 0);
   const linksValid = filled.every((post) => postLinkProblem(post.url, post.platform) === null);
-  const ready = kind === 'link' ? filled.length > 0 && linksValid : Boolean(uploadedUrl);
+  // A video still uploading holds the button, so it isn't silently left out.
+  const ready = filled.length > 0 && linksValid && !uploading;
   const canSubmit = ready && !pending && !blocked;
 
   function onSubmit() {
-    const content =
-      kind === 'link'
-        ? { kind: 'link' as const, posts: filled }
-        : uploadedUrl
-          ? { kind: 'upload' as const, videoUrl: uploadedUrl }
-          : null;
-    if (!content) return;
+    if (!ready) return;
+    const content = uploadedUrl
+      ? { kind: 'upload' as const, posts: filled, videoUrl: uploadedUrl }
+      : { kind: 'link' as const, posts: filled };
     const done = { onSuccess: () => router.replace('/creator/submissions') };
     if (revisionOf) {
       resubmit.mutate({ submissionId: revisionOf.id, ...content }, done);
@@ -204,11 +202,7 @@ function SubmitForm({
 
   return (
     <div className="mt-3 flex flex-col gap-3">
-      <div className="max-w-xs">
-        <SegmentedToggle options={KIND_OPTIONS} value={kind} onChange={setKind} ariaLabel="Submission type" />
-      </div>
-      {kind === 'link' ? (
-        <>
+      <>
           {platforms.length > 1 ? (
             <p className="text-xs text-text-muted">Add a link for each platform you posted on. You need at least one.</p>
           ) : null}
@@ -228,10 +222,11 @@ function SubmitForm({
               />
             );
           })}
-        </>
-      ) : (
-        <VideoUploadField onUploaded={setUploadedUrl} />
-      )}
+      </>
+      <div className="flex flex-col gap-1.5">
+        <p className="text-[13px] font-medium text-text-muted">Original video (optional)</p>
+        <VideoUploadField onUploaded={setUploadedUrl} onUploadingChange={setUploading} />
+      </div>
       {error ? <p className="text-xs text-danger">{error instanceof Error ? error.message : 'Could not submit.'}</p> : null}
       {beforeSubmit}
       <div>
@@ -253,13 +248,20 @@ type UploadState =
  * Chooses a video and uploads it straight to storage with live progress (contract §1.3,
  * "upload or link"). Reports the stored URL once the server has confirmed it arrived.
  */
-function VideoUploadField({ onUploaded }: { onUploaded: (url: string | null) => void }) {
+function VideoUploadField({
+  onUploaded,
+  onUploadingChange,
+}: {
+  onUploaded: (url: string | null) => void;
+  onUploadingChange?: (uploading: boolean) => void;
+}) {
   const api = useApi();
   const [state, setState] = useState<UploadState>({ phase: 'idle' });
 
   async function onFile(file: File | undefined) {
     if (!file) return;
     onUploaded(null);
+    onUploadingChange?.(true);
     setState({ phase: 'uploading', name: file.name, progress: 0 });
     try {
       const uploaded = await uploadVideo(api, file, (progress) =>
@@ -269,6 +271,8 @@ function VideoUploadField({ onUploaded }: { onUploaded: (url: string | null) => 
       onUploaded(uploaded.url);
     } catch (error) {
       setState({ phase: 'error', message: error instanceof Error ? error.message : String(error) });
+    } finally {
+      onUploadingChange?.(false);
     }
   }
 

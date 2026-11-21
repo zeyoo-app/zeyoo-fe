@@ -686,12 +686,10 @@ function toTrackingOutcome(result: BackendTrackingResult): ViewTrackingOutcome {
 }
 
 function toContentBody(content: SubmissionContent) {
+  const posts = content.posts.map((item) => ({ platform: item.platform.toUpperCase(), url: item.url.trim() }));
   return content.kind === 'link'
-    ? {
-        contentType: 'LINK',
-        posts: content.posts.map((item) => ({ platform: item.platform.toUpperCase(), url: item.url.trim() })),
-      }
-    : { contentType: 'UPLOAD', contentUrl: content.videoUrl };
+    ? { contentType: 'LINK', posts }
+    : { contentType: 'UPLOAD', contentUrl: content.videoUrl, posts };
 }
 
 function postPlatform(value: string): PostPlatform {
