@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { BadgeCheck, ExternalLink } from 'lucide-react';
 
 import {
   AsyncContent,
@@ -17,7 +17,16 @@ import {
   useConfirm,
   type Choice,
 } from '@/design-system';
-import type { PostViews, RiskLevel, Submission, SubmissionHistory, SubmissionPost } from '@/shared/api';
+import type {
+  PayoutPreview,
+  PayoutQuote,
+  PostViews,
+  PreviewPost,
+  RiskLevel,
+  Submission,
+  SubmissionHistory,
+  SubmissionPost,
+} from '@/shared/api';
 import { platformLabel } from '@/shared/format/platform';
 import { formatRelativeTime } from '@/shared/format/relativeTime';
 import { formatCount, formatMoney } from '@/shared/money/money';
@@ -25,7 +34,10 @@ import { BackButton } from '@/shared/nav/BackButton';
 
 import { useCampaign, useCampaignFraudCases, useCloseFraudCase, useFlagCreator } from './hooks';
 import {
+  useApproveSubmission,
   useCampaignSubmissions,
+  usePayForNewViews,
+  usePayoutPreview,
   useReviewSubmission,
   useSubmissionHistory,
   useSubmissionViews,
@@ -90,6 +102,13 @@ function SubmissionDetail({
   const history = useSubmissionHistory(submission.id);
   const views = useSubmissionViews(submission.id, submission.status === 'approved');
   const review = useReviewSubmission(campaignId);
+  const approval = useApproveSubmission(campaignId);
+  const isPending = submission.status === 'pending';
+  // While it waits on the brand: every channel's views now and what approving would pay.
+  // Pending: what approving would pay. Approved: what's owed for views since the last payment.
+  const preview = usePayoutPreview(submission.id, isPending || submission.status === 'approved');
+  const payment = usePayForNewViews(campaignId);
+  const quote = preview.data?.quote;
   const track = useTrackViews(campaignId);
   const fraudCases = useCampaignFraudCases(campaignId);
   const flag = useFlagCreator(campaignId);
@@ -105,21 +124,51 @@ function SubmissionDetail({
   const status = SUBMISSION_STATUS[submission.status];
   const name = submission.creatorName ?? submission.creatorHandle;
   const readings = views.data ?? [];
-  const isBusy = review.isPending || track.isPending;
+  const isBusy = review.isPending || approval.isPending || payment.isPending || track.isPending;
   const openCase = (fraudCases.data ?? []).find(
     (item) => item.creatorId === submission.creatorId && item.status === 'open',
   );
 
   const approve = async () => {
     const confirmed = await confirm({
-      title: 'Approve this submission?',
-      message:
-        submission.posts.length > 1
-          ? `${submission.creatorHandle} will be paid for the verified views on all ${submission.posts.length} posts.`
-          : `${submission.creatorHandle} will be paid for their verified views on this post.`,
-      confirmLabel: 'Approve',
+      title: quote ? `Approve and pay ${formatMoney(quote.payNow)}?` : 'Approve this submission?',
+      message: approvalMessage(submission.creatorHandle, quote),
+      confirmLabel: quote ? `Approve & pay ${formatMoney(quote.payNow)}` : 'Approve',
     });
-    if (confirmed) review.mutate({ submissionId: submission.id, decision: 'approve' });
+    if (!confirmed) return;
+    setNotice(null);
+    approval.mutate(submission.id, {
+      onSuccess: (outcome) =>
+        setNotice(
+          outcome.payoutDeferred
+            ? "Approved. Payment couldn't go through; you can pay from this page."
+            : outcome.paidNow.minorUnits > 0
+              ? `Approved. ${formatMoney(outcome.paidNow)} paid to ${submission.creatorHandle}.`
+              : 'Approved. Nothing to pay yet; pay for new views here when they come in.',
+        ),
+    });
+  };
+
+  const payNewViews = async () => {
+    if (!quote) return;
+    const amount = formatMoney(quote.payNow);
+    const confirmed = await confirm({
+      title: `Pay ${amount}?`,
+      message: `${submission.creatorHandle} gets ${amount} for the views their posts gained since you last paid.`,
+      confirmLabel: `Pay ${amount}`,
+    });
+    if (!confirmed) return;
+    setNotice(null);
+    payment.mutate(submission.id, {
+      onSuccess: (outcome) =>
+        setNotice(
+          outcome.payoutDeferred
+            ? "Payment couldn't go through. Try again in a moment."
+            : `${formatMoney(outcome.paidNow)} paid to ${submission.creatorHandle}.`,
+        ),
+      onError: (error) =>
+        setNotice(error instanceof Error ? error.message : "Payment couldn't go through. Try again in a moment."),
+    });
   };
 
   const updateViews = async (entries?: ViewEntry[]) => {
@@ -178,6 +227,12 @@ function SubmissionDetail({
               verified={submission.verifiedPlatforms?.includes(post.platform) ?? false}
               reading={readings.find((reading) => reading.platform === post.platform)}
               showViews={submission.status === 'approved'}
+              preview={
+                isPending ? preview.data?.posts.find((item) => item.platform === post.platform && item.url) : undefined
+              }
+              previewLoading={isPending && preview.isLoading}
+              onEnterViews={() => setEnteringViews(true)}
+              enterDisabled={isBusy}
             />
           ))}
           {submission.kind === 'upload' ? (
@@ -206,10 +261,27 @@ function SubmissionDetail({
         </Card>
       </section>
 
-      {submission.status === 'pending' ? (
+      {isPending ? (
+        <section>
+          <h2 className="mb-3 font-display text-lg font-semibold text-text">Payout on approval</h2>
+          <PayoutCard
+            preview={preview.data}
+            loading={preview.isLoading}
+            failed={preview.isError}
+            notice={notice}
+          />
+        </section>
+      ) : null}
+
+      {isPending ? (
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button className="sm:w-auto" loading={review.isPending} onClick={() => void approve()}>
-            Approve
+          <Button
+            className="sm:w-auto"
+            loading={approval.isPending}
+            disabled={isBusy || preview.isLoading}
+            onClick={() => void approve()}
+          >
+            {quote && quote.payNow.minorUnits > 0 ? `Approve & pay ${formatMoney(quote.payNow)}` : 'Approve'}
           </Button>
           <Button variant="secondary" className="sm:w-auto" disabled={isBusy} onClick={() => setRejecting('request_changes')}>
             Request changes
@@ -219,9 +291,11 @@ function SubmissionDetail({
           </Button>
         </div>
       ) : null}
-      {review.error ? (
+      {review.error || approval.error ? (
         <p className="text-xs text-danger">
-          {review.error instanceof Error ? review.error.message : 'Could not save your decision.'}
+          {(review.error ?? approval.error) instanceof Error
+            ? (review.error ?? approval.error)?.message
+            : 'Could not save your decision.'}
         </p>
       ) : null}
 
@@ -234,6 +308,17 @@ function SubmissionDetail({
                 <Total label="Total views" value={formatCount(submission.views)} />
                 <Total label="Earned" value={formatMoney(submission.earning)} />
               </div>
+              {quote && quote.payNow.minorUnits > 0 ? (
+                <div className="flex items-center gap-3 rounded-xl bg-surface-raised p-3">
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <p className="text-sm font-medium text-text">{formatMoney(quote.payNow)} unpaid</p>
+                    <p className="text-xs text-text-muted">For views since the last payment. Nothing pays until you do.</p>
+                  </div>
+                  <Button size="sm" fullWidth={false} loading={payment.isPending} disabled={isBusy} onClick={() => void payNewViews()}>
+                    Pay {formatMoney(quote.payNow)}
+                  </Button>
+                </div>
+              ) : null}
               {submission.risk === 'high' || submission.risk === 'medium' ? (
                 <p className="text-xs text-warning">
                   {submission.risk === 'high'
@@ -308,7 +393,7 @@ function SubmissionDetail({
       <EnterViewsModal
         open={enteringViews}
         submission={submission}
-        readings={readings}
+        readings={isPending ? previewReadings(preview.data) : readings}
         onClose={() => setEnteringViews(false)}
         onSave={(entries) => void updateViews(entries)}
       />
@@ -381,30 +466,104 @@ function PostRow({
   verified,
   reading,
   showViews,
+  preview,
+  previewLoading,
+  onEnterViews,
+  enterDisabled,
 }: {
   post: SubmissionPost;
   verified: boolean;
   reading?: PostViews;
   showViews: boolean;
+  preview?: PreviewPost;
+  previewLoading?: boolean;
+  onEnterViews?: () => void;
+  enterDisabled?: boolean;
 }) {
+  const views = postViews({ reading, showViews, preview, previewLoading });
+  // Counts that aren't read from the platform are typed in by the brand.
+  const canEnter = Boolean(onEnterViews) && views.typedIn;
+  const label = platformLabel(post.platform);
   return (
-    <div className="flex flex-col gap-1.5 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-text">{platformLabel(post.platform)}</p>
-        <Badge tone={verified ? 'success' : 'neutral'}>{verified ? 'Verified account' : 'Unverified account'}</Badge>
+    <div className="flex items-center gap-4 p-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-text">
+          {label}
+          {verified ? (
+            <BadgeCheck aria-label="Verified account" className="size-4 text-green-text" />
+          ) : (
+            <span className="text-xs font-normal text-text-tertiary">Unverified</span>
+          )}
+        </p>
+        <a
+          href={post.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-w-0 items-center gap-1.5 text-xs text-text-muted hover:text-text hover:underline"
+        >
+          <span className="truncate">{displayUrl(post.url)}</span>
+          <ExternalLink aria-hidden className="size-3 shrink-0 text-text-tertiary" />
+        </a>
       </div>
-      <a
-        href={post.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex min-w-0 items-center gap-1.5 text-xs text-green-text hover:underline"
-      >
-        <span className="truncate">{post.url}</span>
-        <ExternalLink aria-hidden className="size-3.5 shrink-0" />
-      </a>
-      {showViews ? <ReadingLine reading={reading} /> : null}
+      {views.shown ? (
+        <div className="flex shrink-0 flex-col items-end gap-0.5">
+          <span className={`font-numeric text-sm ${views.count === null ? 'text-text-tertiary' : 'text-text'}`}>
+            {views.count === null ? '—' : formatCount(views.count)}
+          </span>
+          {canEnter ? (
+            <button
+              type="button"
+              disabled={enterDisabled}
+              onClick={onEnterViews}
+              aria-label={`Enter views for ${label}`}
+              className="text-xs text-green-text hover:underline disabled:opacity-50"
+            >
+              {views.count === null ? 'Enter views' : 'Edit'}
+            </button>
+          ) : (
+            <span className="text-xs text-text-tertiary">{views.detail}</span>
+          )}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+/** What a post's views column shows: the count, where it came from, and if it's typed in. */
+function postViews({
+  reading,
+  showViews,
+  preview,
+  previewLoading,
+}: {
+  reading?: PostViews;
+  showViews: boolean;
+  preview?: PreviewPost;
+  previewLoading?: boolean;
+}): { shown: boolean; count: number | null; detail: string; typedIn: boolean } {
+  const detail = (source: string | null | undefined, at?: string) =>
+    `${source === 'live' ? 'views now' : source === 'manual' ? 'entered' : 'synced'}${
+      at && source !== 'live' ? ` ${formatRelativeTime(at)}` : ''
+    }`;
+  if (showViews) {
+    if (!reading?.capturedAt) return { shown: true, count: null, detail: 'No views yet', typedIn: true };
+    return {
+      shown: true,
+      count: reading.views,
+      detail: detail(reading.source === 'platform' ? 'platform' : 'manual', reading.capturedAt),
+      typedIn: reading.source !== 'platform',
+    };
+  }
+  if (preview) {
+    return { shown: true, count: preview.views, detail: detail(preview.source, preview.capturedAt), typedIn: preview.source !== 'live' };
+  }
+  if (previewLoading) return { shown: true, count: null, detail: 'Reading…', typedIn: false };
+  return { shown: false, count: null, detail: '', typedIn: false };
+}
+
+/** A post link without the scheme and "www.", which only add noise in a narrow row. */
+function displayUrl(url: string): string {
+  return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
 }
 
 function ReadingLine({ reading }: { reading?: PostViews }) {
@@ -415,6 +574,83 @@ function ReadingLine({ reading }: { reading?: PostViews }) {
       {reading.source === 'platform' ? 'synced' : 'entered'} {formatRelativeTime(reading.capturedAt)}
     </p>
   );
+}
+
+/** What approving pays now and why, so the brand sees the cost before deciding. */
+function PayoutCard({
+  preview,
+  loading,
+  failed,
+  notice,
+}: {
+  preview?: PayoutPreview;
+  loading: boolean;
+  failed: boolean;
+  notice: string | null;
+}) {
+  if (!preview) {
+    return (
+      <Card>
+        <p className="text-sm text-text-muted">
+          {failed ? "Couldn't work out the payout. Refresh to try again." : loading ? 'Reading current views…' : ''}
+        </p>
+      </Card>
+    );
+  }
+  const { quote } = preview;
+  return (
+    <Card className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-4">
+        <Total label="Total views" value={formatCount(preview.totalViews)} />
+        <Total label="Pay now" value={formatMoney(quote.payNow)} />
+      </div>
+      <p className="text-xs text-text-muted">
+        {quote.rewardType === 'fixed'
+          ? `Fixed reward of ${formatMoney(quote.reward)}`
+          : `${formatMoney(quote.reward)} per 1,000 views`}
+        {quote.cap ? ` · up to ${formatMoney(quote.cap)} per creator` : ''}
+      </p>
+      {quote.alreadyPaid.minorUnits > 0 ? (
+        <p className="text-xs text-text-muted">
+          {formatMoney(quote.alreadyPaid)} already paid on this campaign; only the difference is paid now.
+        </p>
+      ) : null}
+      {quote.paused ? (
+        <p className="text-xs text-warning">Earnings are paused for this creator, so nothing is paid now.</p>
+      ) : quote.limitedBy === 'budget' ? (
+        <p className="text-xs text-warning">Held to the {formatMoney(quote.budgetRemaining)} left in the funded budget.</p>
+      ) : quote.limitedBy === 'cap' ? (
+        <p className="text-xs text-text-muted">Held to the per-creator limit.</p>
+      ) : null}
+      {notice ? <p className="text-xs text-text-muted">{notice}</p> : null}
+    </Card>
+  );
+}
+
+/** The preview's counts in the shape the views form fills its fields from. */
+function previewReadings(preview: PayoutPreview | undefined): PostViews[] {
+  return (preview?.posts ?? []).map((post) => ({
+    platform: post.platform,
+    url: post.url,
+    views: post.views ?? 0,
+    likes: 0,
+    comments: 0,
+    shares: 0,
+    capturedAt: post.capturedAt,
+  }));
+}
+
+/** The confirm message: who gets what, for which views, and what happens after. */
+function approvalMessage(handle: string, quote: PayoutQuote | undefined): string {
+  if (!quote) return `${handle} will be paid for their verified views on this post.`;
+  if (quote.paused) return `${handle}'s earnings are paused for review, so nothing is paid until the flag is cleared.`;
+  if (quote.rewardType === 'fixed') return `${handle} gets the fixed reward of ${formatMoney(quote.payNow)} now.`;
+  if (quote.payNow.minorUnits === 0) {
+    return `No views have been counted yet, so nothing is paid now. Pay for views from this page once they're in.`;
+  }
+  return `${handle} gets ${formatMoney(quote.payNow)} now for ${formatCount(quote.views)} views at ${formatMoney(
+    quote.reward,
+  )} per 1,000. Views after this are paid only when you pay for them.`;
 }
 
 function Total({ label, value }: { label: string; value: string }) {
@@ -475,7 +711,7 @@ function EnterViewsModal({
         {fields.length > 1
           ? `The total views each of ${submission.creatorHandle}'s posts has right now.`
           : `The total views ${submission.creatorHandle}'s post has right now.`}{' '}
-        Earnings are credited for any increase.
+        Nothing is paid until you approve or pay.
       </p>
       {fields.map((field) => (
         <Field

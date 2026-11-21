@@ -4,6 +4,9 @@ import type { ZeyooApi } from './ZeyooApi';
 import { readServerSentEvents } from '../ai/sse';
 import { ApiError } from './errors';
 import type {
+  ApprovalOutcome,
+  PayoutPreview,
+  PreviewPost,
   AiConnectionTest,
   AiModel,
   AiSettings,
@@ -78,6 +81,38 @@ interface BackendRevision {
   /** Missing from servers older than per-platform posts. */
   posts?: { platform: string; url: string }[];
 }
+interface BackendPayoutPreview {
+  posts: {
+    platform: string;
+    url: string | null;
+    views: number | null;
+    source: 'LIVE' | 'MANUAL' | 'PLATFORM_API' | null;
+    capturedAt: string | null;
+    unavailableMessage: string | null;
+  }[];
+  totalViews: number;
+  quote: {
+    currencyCode: string;
+    rewardType: 'PER_VIEW' | 'FIXED_PER_ITEM';
+    rewardMinor: number;
+    views: number;
+    entitledMinor: number;
+    alreadyPaidMinor: number;
+    payNowMinor: number;
+    capMinor: number | null;
+    budgetRemainingMinor: number;
+    limitedBy: 'cap' | 'budget' | null;
+    paused: boolean;
+  };
+}
+
+interface BackendApprovalResult {
+  currencyCode: string;
+  paidNowMinor: number;
+  views: number;
+  payoutDeferred: boolean;
+}
+
 interface BackendSubmissionViews {
   posts: {
     platform: string; url: string | null; views: number; likes: number; comments: number; shares: number;
@@ -364,6 +399,19 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
     },
     async syncSubmissionViews(submissionId) {
       return toTrackingOutcome(await request<BackendTrackingResult>('POST', `/submissions/${submissionId}/views/sync`));
+    },
+    async getPayoutPreview(submissionId) {
+      return mapPayoutPreview(
+        await request<BackendPayoutPreview>('GET', `/submissions/${submissionId}/payout-preview`),
+      );
+    },
+    async approveSubmission(submissionId) {
+      return toApprovalOutcome(
+        await request<BackendApprovalResult>('POST', `/submissions/${submissionId}/approve`, {}),
+      );
+    },
+    async payForNewViews(submissionId) {
+      return toApprovalOutcome(await request<BackendApprovalResult>('POST', `/submissions/${submissionId}/pay`));
     },
     async reviewSubmission({ submissionId, decision, reason }) { return mapSubmission(await request<BackendSubmission>('POST', `/submissions/${submissionId}/review`, { decision: REVIEW_DECISION[decision], note: reason })); },
     async getMySubmissions() {
@@ -692,6 +740,51 @@ function toContentBody(content: SubmissionContent) {
     : { contentType: 'UPLOAD', contentUrl: content.videoUrl, posts };
 }
 
+function toApprovalOutcome(data: BackendApprovalResult): ApprovalOutcome {
+  return {
+    paidNow: { minorUnits: data.paidNowMinor, currency: data.currencyCode },
+    views: data.views,
+    payoutDeferred: data.payoutDeferred,
+  };
+}
+
+function mapPayoutPreview(data: BackendPayoutPreview): PayoutPreview {
+  const { quote } = data;
+  const money = (minorUnits: number): Money => ({ minorUnits, currency: quote.currencyCode });
+  return {
+    posts: data.posts.map(
+      (item): PreviewPost => ({
+        platform: postPlatform(item.platform),
+        url: item.url ?? undefined,
+        views: item.views,
+        source:
+          item.source === 'LIVE'
+            ? 'live'
+            : item.source === 'MANUAL'
+              ? 'manual'
+              : item.source === 'PLATFORM_API'
+                ? 'platform'
+                : null,
+        capturedAt: item.capturedAt ?? undefined,
+        unavailableMessage: item.unavailableMessage ?? undefined,
+      }),
+    ),
+    totalViews: data.totalViews,
+    quote: {
+      rewardType: quote.rewardType === 'FIXED_PER_ITEM' ? 'fixed' : 'per_view',
+      reward: money(quote.rewardMinor),
+      views: quote.views,
+      entitled: money(quote.entitledMinor),
+      alreadyPaid: money(quote.alreadyPaidMinor),
+      payNow: money(quote.payNowMinor),
+      cap: quote.capMinor === null ? null : money(quote.capMinor),
+      budgetRemaining: money(quote.budgetRemainingMinor),
+      limitedBy: quote.limitedBy,
+      paused: quote.paused,
+    },
+  };
+}
+
 function postPlatform(value: string): PostPlatform {
   return value === 'X' ? 'x' : platform(value);
 }
@@ -711,10 +804,12 @@ function postPlatformLabel(value: string): string {
 
 /** A version's posts; one from an older server is read from its single link. */
 function revisionPosts(revision: BackendRevision | undefined): SubmissionPost[] {
-  if (!revision || revision.contentType === 'UPLOAD') return [];
-  if (revision.posts) {
+  if (!revision) return [];
+  // An upload carries its post links too; older uploads had only the video.
+  if (revision.posts?.length) {
     return revision.posts.map((item) => ({ platform: postPlatform(item.platform), url: item.url }));
   }
+  if (revision.contentType === 'UPLOAD') return [];
   return [{ platform: platformOfUrl(revision.contentUrl), url: revision.contentUrl }];
 }
 
