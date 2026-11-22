@@ -5,6 +5,7 @@ import { ChevronRight } from 'lucide-react';
 
 import { AsyncContent, Badge, Card } from '@/design-system';
 import type { Campaign } from '@/shared/api';
+import { BackButton } from '@/shared/nav/BackButton';
 import { formatMoney, formatCampaignReward } from '@/shared/money/money';
 
 import { CampaignCover } from './CampaignCover';
@@ -20,10 +21,19 @@ import { ParticipationSection } from './ParticipationSection';
 
 export function CampaignDetailCreatorScreen({ campaignId }: { campaignId: string }) {
   const query = useCampaign(campaignId);
+  const router = useRouter();
   return (
-    <AsyncContent isLoading={query.isLoading} isError={query.isError} data={query.data}>
-      {(campaign) => <CampaignDetail campaign={campaign} />}
-    </AsyncContent>
+    <>
+      <div className="mb-4">
+        {/* Opened straight from a link there's no page to go back to, so it leads to Discover. */}
+        <BackButton
+          onPress={() => (window.history.length > 1 ? router.back() : router.push('/creator/discover'))}
+        />
+      </div>
+      <AsyncContent isLoading={query.isLoading} isError={query.isError} data={query.data}>
+        {(campaign) => <CampaignDetail campaign={campaign} />}
+      </AsyncContent>
+    </>
   );
 }
 

@@ -28,6 +28,8 @@ export { ImageUpload } from './ui/ImageUpload';
 export type { PickedImage } from './ui/ImageUpload';
 export { ProgressBar } from './ui/ProgressBar';
 export { TabBar } from './ui/TabBar';
+export { SelectInput } from './ui/SelectInput';
+export type { SelectOption } from './ui/SelectInput';
 export type { TabItem } from './ui/TabBar';
 export { ActionsMenu } from './ui/ActionsMenu';
 export type { MenuAction } from './ui/ActionsMenu';
