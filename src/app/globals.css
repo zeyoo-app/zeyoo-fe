@@ -66,8 +66,13 @@
   --radius-card: var(--radius);
 }
 
-* {
-  border-color: var(--border);
+/* In the base layer so border colour utilities (border-primary, border-danger) win.
+   Unlayered, it overrode every one of them: no green underline on the active tab,
+   no green focus or red error border on fields. */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
 }
 
 body {

@@ -7,11 +7,13 @@ import {
   AsyncContent,
   Badge,
   Button,
-  ChoiceChips,
   Field,
+  SelectInput,
+  TabBar,
   useConfirm,
   type BadgeTone,
-  type Choice,
+  type SelectOption,
+  type TabItem,
 } from '@/design-system';
 import type { AdminUser, AdminUserStatus, AdminUserType } from '@/shared/api';
 
@@ -19,14 +21,16 @@ import { AdminPageHeader, DataTable, Pager, type Column } from './DataTable';
 import { formatDate } from './format';
 import { useAdminUsers, useSetUserSuspended } from './hooks';
 
-const TYPE_CHOICES: Choice<AdminUserType | 'ALL'>[] = [
+// Who: tabs, because it decides which list you're looking at.
+const TYPE_TABS: TabItem<AdminUserType | 'ALL'>[] = [
   { value: 'ALL', label: 'Everyone' },
   { value: 'CREATOR', label: 'Creators' },
   { value: 'BRAND_USER', label: 'Brands' },
   { value: 'ADMIN', label: 'Staff' },
 ];
 
-const STATUS_CHOICES: Choice<AdminUserStatus | 'ALL'>[] = [
+// Which state: a dropdown beside search, because it narrows the list you're in.
+const STATUS_OPTIONS: SelectOption<AdminUserStatus | 'ALL'>[] = [
   { value: 'ALL', label: 'Any status' },
   { value: 'ACTIVE', label: 'Active' },
   { value: 'SUSPENDED', label: 'Suspended' },
@@ -122,34 +126,40 @@ export function AdminUsersScreen() {
         title="Users"
         subtitle="Every account on the platform. Open a person for their full picture. Staff are managed under Staff."
       />
-      <div className="mb-4 flex flex-col gap-3">
-        <Field
-          label="Search"
-          placeholder="Email or phone"
-          value={search}
-          onChange={(event) => {
-            setSearch(event.target.value);
-            reset();
-          }}
-        />
-        <ChoiceChips
-          accessibilityLabel="Role"
-          choices={TYPE_CHOICES}
+      <div className="mb-4 flex flex-col gap-4">
+        <TabBar
+          ariaLabel="Role"
+          tabs={TYPE_TABS}
           value={type}
           onChange={(value) => {
             setType(value);
             reset();
           }}
         />
-        <ChoiceChips
-          accessibilityLabel="Status"
-          choices={STATUS_CHOICES}
-          value={status}
-          onChange={(value) => {
-            setStatus(value);
-            reset();
-          }}
-        />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <Field
+              label="Search"
+              type="search"
+              placeholder="Email or phone"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                reset();
+              }}
+            />
+          </div>
+          <SelectInput
+            label="Status"
+            className="sm:w-48"
+            options={STATUS_OPTIONS}
+            value={status}
+            onChange={(value) => {
+              setStatus(value);
+              reset();
+            }}
+          />
+        </div>
       </div>
       {suspend.error ? (
         <p className="mb-3 text-sm text-danger">
