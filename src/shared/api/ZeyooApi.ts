@@ -1,5 +1,6 @@
 import type { Money } from '../money/money';
 import type {
+  StaffRole,
   ApprovalOutcome,
   PayoutPreview,
   PlanChange,
@@ -248,7 +249,8 @@ export interface ZeyooApi {
   getAdminVerifications(page?: number): Promise<AdminPage<AdminVerification>>;
   reviewAdminVerification(input: { userId: string; approve: boolean; note?: string }): Promise<void>;
   getAdminStaff(): Promise<AdminStaff[]>;
-  addAdminStaff(email: string): Promise<void>;
+  addAdminStaff(input: { email: string; role: StaffRole }): Promise<void>;
+  setAdminStaffRole(input: { staffId: string; role: StaffRole }): Promise<void>;
   setAdminStaffActive(input: { staffId: string; active: boolean }): Promise<void>;
   getAdminBilling(): Promise<AdminBilling>;
   refundAdminCampaign(campaignId: string): Promise<AdminRefundOutcome>;

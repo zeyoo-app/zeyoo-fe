@@ -971,7 +971,7 @@ export interface AdminVerification {
 }
 
 /** Back-office roles. Super admin is the only one for now. */
-export type StaffRole = 'SUPER_ADMIN';
+export type StaffRole = 'SUPER_ADMIN' | 'ADMINISTRATOR' | 'SUPPORT' | 'FINANCE';
 
 export type StaffStatus = 'ACTIVE' | 'DEACTIVATED';
 
