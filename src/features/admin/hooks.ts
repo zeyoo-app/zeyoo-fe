@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { useApi } from '@/shared/api';
-import type { AdminCampaignStatus, AdminUserQuery, AiProviderId } from '@/shared/api';
+import type { AdminCampaignStatus, AdminUserQuery, AiProviderId, StaffRole } from '@/shared/api';
 
 const ROOT = ['admin'] as const;
 
@@ -160,7 +160,19 @@ export function useReviewVerification() {
 export function useAddStaff() {
   const api = useApi();
   const refresh = useRefreshAdmin();
-  return useMutation({ mutationFn: (email: string) => api.addAdminStaff(email), onSuccess: refresh });
+  return useMutation({
+    mutationFn: (input: { email: string; role: StaffRole }) => api.addAdminStaff(input),
+    onSuccess: refresh,
+  });
+}
+
+export function useSetStaffRole() {
+  const api = useApi();
+  const refresh = useRefreshAdmin();
+  return useMutation({
+    mutationFn: (input: { staffId: string; role: StaffRole }) => api.setAdminStaffRole(input),
+    onSuccess: refresh,
+  });
 }
 
 export function useSetStaffActive() {

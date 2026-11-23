@@ -26,16 +26,20 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-import { Logo, cn } from '@/design-system';
+import { EmptyState, Logo, cn } from '@/design-system';
+import type { StaffRole } from '@/shared/api';
 import { STAFF_SESSION_EXPIRED_EVENT } from '@/shared/auth/sessionEvents';
 
 import { useAdminOverview } from './hooks';
+import { areaForPath, canOpen, type StaffArea } from './staffAccess';
 import { useStaffSession } from './staffSession';
 
 type QueueKey = 'withdrawals' | 'disputes' | 'fraud' | 'verifications';
 
 interface AdminNavItem {
   href: string;
+  /** The back-office area it opens; hidden from roles that don't cover it. */
+  area: StaffArea;
   label: string;
   icon: ComponentType<{ className?: string }>;
   /** Shows how many items in this queue are waiting for staff. */
@@ -52,27 +56,27 @@ const ADMIN_NAV: AdminNavSection[] = [
   {
     title: 'Operations',
     items: [
-      { href: '/admin/overview', label: 'Overview', icon: LayoutDashboard },
+      { href: '/admin/overview', area: 'overview', label: 'Overview', icon: LayoutDashboard },
       {
-        href: '/admin/withdrawals',
+        href: '/admin/withdrawals', area: 'finance',
         label: 'Withdrawals',
         icon: Banknote,
         queue: 'withdrawals',
       },
       {
-        href: '/admin/disputes',
+        href: '/admin/disputes', area: 'trust',
         label: 'Disputes',
         icon: Scale,
         queue: 'disputes',
       },
       {
-        href: '/admin/fraud',
+        href: '/admin/fraud', area: 'trust',
         label: 'Earnings reviews',
         icon: ShieldAlert,
         queue: 'fraud',
       },
       {
-        href: '/admin/verifications',
+        href: '/admin/verifications', area: 'people',
         label: 'Verifications',
         icon: BadgeCheck,
         queue: 'verifications',
@@ -82,23 +86,31 @@ const ADMIN_NAV: AdminNavSection[] = [
   {
     title: 'Platform',
     items: [
-      { href: '/admin/users', label: 'Users', icon: Users },
-      { href: '/admin/organizations', label: 'Organizations', icon: Building2 },
-      { href: '/admin/campaigns', label: 'Campaigns', icon: Megaphone },
-      { href: '/admin/payments', label: 'Payments', icon: CreditCard },
-      { href: '/admin/billing', label: 'Billing', icon: Receipt },
+      { href: '/admin/users', area: 'people', label: 'Users', icon: Users },
+      { href: '/admin/organizations', area: 'people', label: 'Organizations', icon: Building2 },
+      { href: '/admin/campaigns', area: 'campaigns', label: 'Campaigns', icon: Megaphone },
+      { href: '/admin/payments', area: 'finance', label: 'Payments', icon: CreditCard },
+      { href: '/admin/billing', area: 'finance', label: 'Billing', icon: Receipt },
     ],
   },
   {
     title: 'Settings',
     items: [
-      { href: '/admin/staff', label: 'Staff', icon: ShieldCheck },
-      { href: '/admin/categories', label: 'Categories', icon: Tags },
-      { href: '/admin/ai', label: 'AI assistants', icon: Sparkles },
-      { href: '/admin/audit', label: 'Audit log', icon: ListChecks },
+      { href: '/admin/staff', area: 'staff', label: 'Staff', icon: ShieldCheck },
+      { href: '/admin/categories', area: 'campaigns', label: 'Categories', icon: Tags },
+      { href: '/admin/ai', area: 'settings', label: 'AI assistants', icon: Sparkles },
+      { href: '/admin/audit', area: 'audit', label: 'Audit log', icon: ListChecks },
     ],
   },
 ];
+
+/** The sidebar a role sees: only areas it covers, and no empty sections. */
+function visibleNav(role: StaffRole | undefined): AdminNavSection[] {
+  return ADMIN_NAV.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => canOpen(role, item.area)),
+  })).filter((section) => section.items.length > 0);
+}
 
 const COLLAPSED_KEY = 'zeyoo.admin.sidebarCollapsed';
 
@@ -132,6 +144,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const drawerOpen = drawerPath === pathname;
   const setDrawerOpen = (open: boolean) => setDrawerPath(open ? pathname : null);
   const allowed = status === 'authenticated';
+  const area = areaForPath(pathname);
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/admin/sign-in');
@@ -194,6 +207,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
               pathname={pathname}
               collapsed={false}
               email={session?.email ?? ''}
+              role={session?.role}
               onSignOut={handleSignOut}
             />
           </div>
@@ -210,12 +224,22 @@ export function AdminShell({ children }: { children: ReactNode }) {
           pathname={pathname}
           collapsed={collapsed}
           email={session?.email ?? ''}
+          role={session?.role}
           onToggle={toggleCollapsed}
           onSignOut={handleSignOut}
         />
       </aside>
 
-      <main className="mx-auto w-full max-w-5xl min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">{children}</main>
+      <main className="mx-auto w-full max-w-5xl min-w-0 flex-1 px-4 py-6 md:px-8 md:py-8">
+        {area && !canOpen(session?.role, area) ? (
+          <EmptyState
+            title="Not part of your role"
+            description="Your staff role doesn't include this area. Ask a super admin if you need it."
+          />
+        ) : (
+          children
+        )}
+      </main>
     </div>
   );
 }
@@ -224,12 +248,14 @@ function SidebarContent({
   pathname,
   collapsed,
   email,
+  role,
   onToggle,
   onSignOut,
 }: {
   pathname: string;
   collapsed: boolean;
   email: string;
+  role?: StaffRole;
   onToggle?: () => void;
   onSignOut: () => void;
 }) {
@@ -256,7 +282,7 @@ function SidebarContent({
       </div>
 
       <nav className="mt-8 flex flex-1 flex-col gap-6 overflow-y-auto">
-        {ADMIN_NAV.map((section) => (
+        {visibleNav(role).map((section) => (
           <div key={section.title} className="flex flex-col gap-1">
             {collapsed ? null : (
               <p className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-text-tertiary">

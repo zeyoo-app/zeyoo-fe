@@ -230,8 +230,9 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
       window.dispatchEvent(new Event(channel.expiredEvent));
     }
     if (!response.ok) throw await apiError(response);
-    if (response.status === 204) return undefined as T;
-    return response.json() as Promise<T>;
+    // Actions that return nothing may still answer 200/201 with an empty body.
+    const text = await response.text();
+    return (text ? JSON.parse(text) : undefined) as T;
   }
 
   /**
@@ -581,7 +582,8 @@ export function createBackendApi(baseUrl: string, channel: SessionChannel = APP_
       await request('POST', `/admin/verifications/${userId}/${approve ? 'approve' : 'reject'}`, approve ? undefined : { note });
     },
     async getAdminStaff() { return request<AdminStaff[]>('GET', '/admin/staff'); },
-    async addAdminStaff(email) { await request('POST', '/admin/staff', { email }); },
+    async addAdminStaff({ email, role }) { await request('POST', '/admin/staff', { email, role }); },
+    async setAdminStaffRole({ staffId, role }) { await request('POST', `/admin/staff/${staffId}/role`, { role }); },
     async setAdminStaffActive({ staffId, active }) {
       await request('POST', `/admin/staff/${staffId}/${active ? 'reactivate' : 'deactivate'}`);
     },
